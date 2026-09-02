@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Audio output and working files
+*.wav
+*.m4a
+*.mp3
+narration.*
+
+# Source documents: never commit copyrighted readings
+samples/*.pdf
+*.pdf
+
+# OS
+.DS_Store

@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pdftts</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="pdftts">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#8a5a2b">
+<style>
+  :root{
+    --bg:#f7f6f3; --panel:#fff; --ink:#1d1c1a; --muted:#6b6862; --line:#e2dfd8;
+    --accent:#8a5a2b; --accent-ink:#fff; --hl:#f3e5d0; --ok:#2f6f4e; --err:#9d3b3b;
+    --radius:10px;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#161513;--panel:#1f1e1b;--ink:#eceae5;--muted:#a09b92;--line:#33312c;
+          --accent:#c8935c;--accent-ink:#1a1714;--hl:#3a2f22;--ok:#7fc39b;--err:#e08585;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.55 ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:34px 20px 80px}
+  header{display:flex;align-items:baseline;gap:16px;margin-bottom:6px;flex-wrap:wrap}
+  h1{font-size:1.5rem;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:.94rem}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+        padding:20px;margin-bottom:18px}
+  .tabs{display:flex;gap:6px}
+  .tab{padding:7px 14px;border:1px solid var(--line);background:transparent;color:var(--muted);
+       border-radius:99px;cursor:pointer;font:inherit;font-size:.88rem}
+  .tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .subtabs{margin-bottom:16px}
+  textarea{width:100%;min-height:170px;padding:12px;border:1px solid var(--line);
+           border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical}
+  .drop{border:1.5px dashed var(--line);border-radius:8px;padding:32px;text-align:center;
+        color:var(--muted);cursor:pointer;transition:.15s}
+  .drop.over,.drop:hover{border-color:var(--accent);color:var(--ink)}
+  .drop strong{color:var(--ink)}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-top:16px}
+  label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:5px;
+        text-transform:uppercase;letter-spacing:.05em}
+  select,input[type=text]{padding:8px 10px;border:1px solid var(--line);border-radius:7px;
+        background:var(--bg);color:var(--ink);font:inherit;min-width:190px;max-width:330px}
+  input[type=range]{width:160px;accent-color:var(--accent)}
+  button.go{background:var(--accent);color:var(--accent-ink);border:0;padding:11px 22px;
+        border-radius:8px;font:inherit;font-weight:600;cursor:pointer;margin-left:auto}
+  button.go:disabled{opacity:.5;cursor:default}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);
+        padding:7px 13px;border-radius:7px;font:inherit;font-size:.9rem;cursor:pointer}
+  button.ghost:hover{border-color:var(--accent)}
+  .bar{height:7px;background:var(--line);border-radius:99px;overflow:hidden;margin:14px 0 8px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+  .meta{font-size:.87rem;color:var(--muted)}
+  .meta b{color:var(--ink);font-weight:600}
+  .err{color:var(--err)} .ok{color:var(--ok)}
+  audio{width:100%;margin-top:14px}
+  .hide{display:none}
+  .dl{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .advisor{padding:14px 18px;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+  .advisor .dev{font-size:.84rem;color:var(--muted)}
+  .badge{display:inline-block;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;
+         padding:2px 8px;border-radius:99px;background:var(--accent);color:var(--accent-ink)}
+  .enote{font-size:.85rem;color:var(--muted);margin-top:10px;line-height:1.5}
+  .enote b{color:var(--ink)}
+  select option:disabled{color:var(--muted)}
+
+  /* follow-along reader */
+  #reader{max-height:46vh;overflow-y:auto;padding:6px 4px;margin-top:16px;
+          border-top:1px solid var(--line);scroll-behavior:smooth}
+  .seg{margin:0 0 .7em;padding:6px 10px;border-radius:7px;cursor:pointer;
+       color:var(--muted);transition:background .25s,color .25s}
+  .seg:hover{color:var(--ink)}
+  .seg.active{background:var(--hl);color:var(--ink)}
+  .seg.done{color:var(--ink);opacity:.62}
+  .w{border-radius:4px;padding:0 1px;transition:background .12s}
+  .w.on{background:var(--accent);color:var(--accent-ink)}
+  .chaps{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .chip{border:1px solid var(--line);border-radius:99px;padding:5px 12px;font-size:.83rem;
+        cursor:pointer;color:var(--muted);background:transparent}
+  .chip:hover,.chip.on{border-color:var(--accent);color:var(--ink)}
+  .readerbar{display:flex;gap:12px;align-items:center;margin-top:12px;font-size:.85rem;
+             color:var(--muted)}
+
+  /* library */
+  .item{display:flex;gap:14px;align-items:baseline;padding:12px 4px;
+        border-bottom:1px solid var(--line);cursor:pointer}
+  .item:last-child{border-bottom:0}
+  .item:hover .t{color:var(--accent)}
+  .item .t{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+           white-space:nowrap}
+  .item .d{font-size:.82rem;color:var(--muted);white-space:nowrap}
+  .empty{color:var(--muted);padding:22px 4px;text-align:center}
+  .qrbox{margin:16px 0;display:flex;justify-content:center}
+  .qrbox svg{width:210px;height:210px;background:#fff;padding:10px;border-radius:10px}
+  .url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.02rem;
+       color:var(--ink);word-break:break-all}
+  .off{font-size:.74rem;padding:2px 7px;border-radius:99px;border:1px solid var(--line);
+       color:var(--muted);white-space:nowrap}
+  .off.on{border-color:var(--ok);color:var(--ok)}
+
+  @media (max-width:640px){
+    .wrap{padding:20px 14px 60px}
+    .row{gap:12px}
+    .row > div{flex:1 1 100%}
+    select,input[type=text]{width:100%;max-width:none;min-width:0}
+    input[type=range]{width:100%}
+    button.go{margin-left:0;width:100%;padding:14px}
+    .tab{padding:9px 16px}
+    button.ghost{padding:10px 14px}
+    #reader{max-height:58vh;font-size:1.06rem;line-height:1.7}
+    .seg{padding:8px 10px}
+    .advisor{flex-direction:column;gap:6px}
+    .item{padding:14px 4px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>pdftts</h1>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-view="new">New</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="past">Past</button>
+      <button class="tab" role="tab" aria-selected="false" data-view="phone">Phone</button>
+    </div>
+  </header>
+  <p class="sub">Paste text or drop a document. Everything runs on this machine.</p>
+
+  <!-- ── NEW ───────────────────────────────────────────── -->
+  <div id="view-new">
+    <div class="card advisor" id="advisor"><span class="meta">Checking what this machine can run&hellip;</span></div>
+
+    <div class="card">
+      <div class="tabs subtabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-mode="pdf">File</button>
+        <button class="tab" role="tab" aria-selected="false" data-mode="text">Text</button>
+      </div>
+
+      <div id="pane-pdf">
+        <div class="drop" id="drop">
+          <strong>Drop a document here</strong><br>PDF, EPUB, DOCX, HTML, Markdown or text &mdash; scans are OCR'd automatically
+          <input type="file" id="file" accept=".pdf,.epub,.docx,.txt,.md,.html,.htm" hidden>
+        </div>
+        <div class="row">
+          <div><label for="pages">Pages (optional)</label>
+            <input type="text" id="pages" placeholder="e.g. 2-7"></div>
+        </div>
+      </div>
+
+      <div id="pane-text" class="hide">
+        <textarea id="text" placeholder="Paste anything you want read aloud&hellip;"></textarea>
+      </div>
+
+      <div class="row">
+        <div><label for="engine">Engine</label><select id="engine"></select></div>
+        <div><label for="voice">Voice</label><select id="voice"></select></div>
+        <div><label for="speed">Speed <span id="speedv">1.00&times;</span></label>
+          <input type="range" id="speed" min="0.7" max="1.6" step="0.05" value="1"></div>
+        <button class="go" id="go">Read it</button>
+      </div>
+      <div class="enote" id="enote"></div>
+    </div>
+
+    <div class="card hide" id="status">
+      <div class="meta" id="line">Starting&hellip;</div>
+      <div class="bar"><i id="fill"></i></div>
+      <div class="meta" id="sub2"></div>
+    </div>
+  </div>
+
+  <!-- ── PAST ──────────────────────────────────────────── -->
+  <div id="view-past" class="hide">
+    <div class="card">
+      <div class="meta" id="libmeta">Loading&hellip;</div>
+      <div id="liblist"></div>
+    </div>
+  </div>
+
+  <!-- ── PHONE ─────────────────────────────────────────── -->
+  <div id="view-phone" class="hide">
+    <div class="card">
+      <div class="meta" id="pairmsg">Finding this machine on your network&hellip;</div>
+      <div id="qrbox" class="qrbox"></div>
+      <div class="enote" id="pairnote"></div>
+    </div>
+  </div>
+
+  <!-- ── PLAYER + FOLLOW-ALONG (shared) ────────────────── -->
+  <div class="card hide" id="playercard">
+    <div class="meta" id="ptitle"></div>
+    <audio id="player" controls preload="metadata"></audio>
+    <div class="readerbar">
+      <label style="margin:0;text-transform:none;letter-spacing:0">
+        <input type="checkbox" id="follow" checked> Follow along
+      </label>
+      <span id="segpos"></span>
+      <span style="margin-left:auto">Click any line to jump there</span>
+    </div>
+    <div class="chaps" id="chaps"></div>
+    <div id="reader"></div>
+    <div class="dl" id="dl">
+      <button class="ghost" id="save-off">Save offline</button>
+      <button class="ghost" id="dl-audio">Download audio</button>
+      <button class="ghost" id="dl-srt">Subtitles (.srt)</button>
+      <button class="ghost" id="dl-vtt">.vtt</button>
+      <button class="ghost hide" id="del">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+let OFFLINE = new Set();
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").then(refreshOffline).catch(() => {});
+  navigator.serviceWorker.addEventListener("message", e => {
+    const d = e.data || {};
+    if (d.action === "list") { OFFLINE = new Set(d.ids); paintOffline(); }
+    if (d.action === "saved") {
+      if (d.ok) OFFLINE.add(d.id); else alert("Could not save offline: " + d.error);
+      paintOffline();
+    }
+    if (d.action === "forgotten") { OFFLINE.delete(d.id); paintOffline(); }
+  });
+}
+const sw = () => navigator.serviceWorker && navigator.serviceWorker.controller;
+const refreshOffline = () => sw() && sw().postMessage({action:"list"});
+function paintOffline(){
+  document.querySelectorAll("[data-off]").forEach(el => {
+    const on = OFFLINE.has(el.dataset.off);
+    el.textContent = on ? "offline" : "";
+    el.classList.toggle("on", on);
+  });
+  const cur = $("#save-off");
+  if (cur && cur.dataset.id)
+    cur.textContent = OFFLINE.has(cur.dataset.id) ? "Remove download" : "Save offline";
+}
+let mode = "pdf", chosen = null, jobId = null, timer = null;
+let ENGINES = [], SEGS = [], CHAPS = [], lastActive = -1, lastWord = "";
+
+/* ---------- view switching ---------- */
+document.querySelectorAll("[data-view]").forEach(t => t.onclick = () => {
+  document.querySelectorAll("[data-view]").forEach(x => x.setAttribute("aria-selected", x === t));
+  const v = t.dataset.view;
+  $("#view-new").classList.toggle("hide", v !== "new");
+  $("#view-past").classList.toggle("hide", v !== "past");
+  $("#view-phone").classList.toggle("hide", v !== "phone");
+  if (v === "past") loadLibrary();
+  if (v === "phone") loadPair();
+});
+document.querySelectorAll("[data-mode]").forEach(t => t.onclick = () => {
+  document.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-selected", x === t));
+  mode = t.dataset.mode;
+  $("#pane-pdf").classList.toggle("hide", mode !== "pdf");
+  $("#pane-text").classList.toggle("hide", mode !== "text");
+});
+
+/* ---------- engines ---------- */
+fetch("/api/engines").then(r => r.json()).then(d => {
+  ENGINES = d.engines;
+  $("#advisor").innerHTML = `<span class="badge">${d.recommended}</span>` +
+    `<span>${d.why}</span><span class="dev">${d.device}</span>`;
+  $("#engine").innerHTML = d.engines.map(e => {
+    const stars = "★".repeat(e.quality) + "☆".repeat(5 - e.quality);
+    let why = !e.fits ? " — too big for this machine" : (!e.installed ? " — not installed" : "");
+    return `<option value="${e.id}"${e.usable ? "" : " disabled"}` +
+           `${e.id === d.recommended ? " selected" : ""}>${e.name} ${stars}${why}</option>`;
+  }).join("");
+  loadVoices();
+});
+
+function loadVoices(){
+  const id = $("#engine").value;
+  const e = ENGINES.find(x => x.id === id);
+  $("#enote").innerHTML = e
+    ? `<b>${e.tradeoff}</b><br>${e.params} · ${e.license} · ${e.speed}` +
+      `${e.cloning ? " · clones a reference voice" : ""}`
+    : "";
+  fetch("/api/voices?engine=" + encodeURIComponent(id)).then(r => r.json()).then(d => {
+    $("#voice").innerHTML = d.voices
+      .map(v => `<option value="${v.id}"${v.id === d.default ? " selected" : ""}>${v.id} — ${v.note}</option>`)
+      .join("");
+  });
+}
+$("#engine").onchange = loadVoices;
+$("#speed").oninput = e => $("#speedv").textContent = (+e.target.value).toFixed(2) + "×";
+
+/* ---------- file picking ---------- */
+const drop = $("#drop");
+drop.onclick = () => $("#file").click();
+$("#file").onchange = e => setFile(e.target.files[0]);
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => {
+  e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
+function setFile(f){
+  if (!f) return;
+  chosen = f;
+  drop.innerHTML = `<strong>${f.name}</strong><br>${(f.size/1048576).toFixed(1)} MB — click to change`;
+  drop.appendChild($("#file"));
+}
+
+/* ---------- submit ---------- */
+$("#go").onclick = async () => {
+  const fd = new FormData();
+  fd.append("engine", $("#engine").value);
+  fd.append("voice", $("#voice").value);
+  fd.append("speed", $("#speed").value);
+  if (mode === "pdf") {
+    if (!chosen) return alert("Choose a PDF first.");
+    fd.append("file", chosen);
+    fd.append("pages", $("#pages").value.trim());
+  } else {
+    if (!$("#text").value.trim()) return alert("Paste some text first.");
+    fd.append("text", $("#text").value);
+  }
+  $("#go").disabled = true;
+  $("#status").classList.remove("hide");
+  $("#playercard").classList.add("hide");
+  $("#line").textContent = "Reading the document…";
+  $("#line").className = "meta";
+  const r = await fetch("/api/jobs", {method:"POST", body:fd});
+  if (!r.ok) { fail((await r.json()).detail || "request failed"); return; }
+  jobId = (await r.json()).id;
+  timer = setInterval(poll, 700);
+};
+
+function fail(msg){
+  clearInterval(timer);
+  $("#line").textContent = msg;
+  $("#line").className = "meta err";
+  $("#go").disabled = false;
+}
+
+async function poll(){
+  const j = await (await fetch(`/api/jobs/${jobId}`)).json();
+  $("#fill").style.width = j.percent + "%";
+  const est = j.minutes ? `~${j.minutes} min of audio` : "";
+  if (j.state === "extracting") $("#line").textContent = "Reading the document…";
+  if (j.state === "speaking")
+    $("#line").innerHTML = `Speaking <b>${j.done}</b> of <b>${j.total}</b> chunks — ${est}`;
+  $("#sub2").textContent = j.ocr_used ? "No text layer — used Vision OCR." : "";
+  if (j.state === "ready"){
+    clearInterval(timer);
+    $("#line").innerHTML = `<span class="ok">Done</span> — ${est}`;
+    $("#go").disabled = false;
+    notifyDone(est);
+    if (j.entry_id) openEntry(j.entry_id);
+  }
+  if (j.state === "cancelled") fail("Cancelled.");
+  if (j.state === "error") fail(j.detail || "Something went wrong.");
+}
+
+/* ---------- pairing ---------- */
+async function loadPair(){
+  try {
+    const d = await (await fetch("/api/pair")).json();
+    $("#pairmsg").innerHTML = `Scan this, or open <span class="url">${d.url}</span> on your phone.`;
+    $("#qrbox").innerHTML = d.svg;
+    $("#pairnote").innerHTML =
+      "Your phone must be on the same network. In Safari, use Share \u2192 Add to Home Screen " +
+      "to install it as an app with lock-screen controls.<br><br>" +
+      "Then open <b>Past</b>, pick a narration and tap <b>Save offline</b> \u2014 it downloads to " +
+      "the phone and plays with this machine asleep and no wifi.<br><br>" +
+      "<b>Note:</b> anyone on this network can reach the dashboard; there is no password.";
+  } catch (e) {
+    $("#pairmsg").textContent = "Start the server with --lan to make it reachable from a phone.";
+  }
+}
+
+/* ---------- library ---------- */
+async function loadLibrary(){
+  const d = await (await fetch("/api/library")).json();
+  $("#libmeta").textContent = d.entries.length
+    ? `${d.entries.length} saved narration${d.entries.length > 1 ? "s" : ""} · ${(d.bytes/1048576).toFixed(0)} MB on disk`
+    : "";
+  $("#liblist").innerHTML = d.entries.length
+    ? d.entries.map(e => `
+        <div class="item" data-id="${e.id}">
+          <span class="t">${e.title}</span>
+          <span class="off" data-off="${e.id}"></span>
+          <span class="d">${e.engine} · ${(e.duration/60).toFixed(0)} min · ${fmt(e.created)}</span>
+        </div>`).join("")
+    : `<div class="empty">Nothing saved yet. Anything you render is kept here and plays without re-downloading.</div>`;
+  document.querySelectorAll(".item").forEach(el => el.onclick = () => openEntry(el.dataset.id));
+  refreshOffline(); paintOffline();
+}
+const fmt = t => new Date(t*1000).toLocaleString(undefined,
+  {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"});
+
+async function openEntry(id){
+  const e = await (await fetch(`/api/library/${id}`)).json();
+  SEGS = e.segments || [];
+  lastActive = -1;
+  $("#ptitle").innerHTML =
+    `<b>${e.title}</b> — ${e.engine}${e.voice ? " / " + e.voice : ""} · ` +
+    `${(e.duration/60).toFixed(0)} min · ${e.chars.toLocaleString()} chars` +
+    (e.ocr_used ? " · OCR" : "");
+  $("#reader").innerHTML = SEGS.length
+    ? SEGS.map(s => {
+        const body = (s.words && s.words.length)
+          ? s.words.map((w, k) => `<span class="w" data-s="${s.index}" data-k="${k}">${escapeHtml(w[0])}</span>`).join(" ")
+          : escapeHtml(s.text);
+        return `<p class="seg" data-i="${s.index}">${body}</p>`;
+      }).join("")
+    : `<p class="seg">${escapeHtml(e.text || "")}</p>`;
+  const exact = SEGS.some(s => s.exact);
+  $("#segpos").textContent = exact ? "" : "timings estimated";
+  CHAPS = e.chapters || [];
+  $("#chaps").innerHTML = CHAPS.length > 1
+    ? CHAPS.map((c, n) => `<button class="chip" data-c="${n}">${escapeHtml(c.title)}</button>`).join("")
+    : "";
+  document.querySelectorAll(".chip").forEach(b => b.onclick = () => {
+    $("#player").currentTime = CHAPS[+b.dataset.c].start + .01; $("#player").play();
+  });
+  document.querySelectorAll(".seg").forEach(p => p.onclick = () => {
+    const s = SEGS[+p.dataset.i];
+    if (s) { $("#player").currentTime = s.start + .01; $("#player").play(); }
+  });
+  $("#player").src = `/api/library/${id}/audio`;
+  $("#playercard").classList.remove("hide");
+  $("#del").classList.remove("hide");
+  $("#dl-audio").onclick = () => location.href = `/api/library/${id}/audio`;
+  const subMode = () => (SEGS.some(s => s.words && s.words.length) ? "word" : "sentence");
+  $("#dl-srt").onclick = () => location.href = `/api/library/${id}/subtitles?fmt=srt&mode=${subMode()}`;
+  $("#dl-vtt").onclick = () => location.href = `/api/library/${id}/subtitles?fmt=vtt&mode=${subMode()}`;
+  $("#del").onclick = async () => {
+    if (!confirm(`Delete "${e.title}"? This cannot be undone.`)) return;
+    await fetch(`/api/library/${id}`, {method:"DELETE"});
+    $("#playercard").classList.add("hide");
+    loadLibrary();
+  };
+  const save = $("#save-off");
+  save.dataset.id = id;
+  save.classList.toggle("hide", !sw());
+  save.onclick = () => {
+    if (!sw()) return;
+    sw().postMessage({action: OFFLINE.has(id) ? "forget" : "save", id});
+    save.textContent = OFFLINE.has(id) ? "Removing…" : "Downloading…";
+  };
+  paintOffline();
+  mediaSession(e);
+  $("#playercard").scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+}
+
+function notifyDone(est){
+  // A long render is exactly when you have gone and done something else.
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  if (document.visibilityState === "visible") return;
+  try { new Notification("Narration ready", {body: est || "Your audio is ready to play.",
+                                             icon: "/icon.svg", tag: "pdftts-done"}); }
+  catch (e) { /* not supported outside an installed app on some platforms */ }
+}
+$("#go").addEventListener("click", () => {
+  if ("Notification" in window && Notification.permission === "default")
+    Notification.requestPermission().catch(() => {});
+}, {once: true});
+
+/* ---------- phone lock-screen controls ---------- */
+function mediaSession(entry){
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: entry.title || "Narration",
+    artist: entry.engine ? `${entry.engine}${entry.voice ? " / " + entry.voice : ""}` : "pdftts",
+    album: "pdftts",
+    artwork: [{src: "/icon.svg", sizes: "any", type: "image/svg+xml"}],
+  });
+  const p = $("#player");
+  const jump = d => { p.currentTime = Math.max(0, Math.min(p.duration || 0, p.currentTime + d)); };
+  const chapter = dir => {
+    if (!CHAPS.length) return jump(dir * 30);
+    const now = p.currentTime;
+    let i = CHAPS.findIndex(c => now >= c.start && now < c.end);
+    if (i < 0) i = 0;
+    // "previous" restarts the current chapter unless you are near its start
+    const target = dir < 0 && now - CHAPS[i].start > 3 ? i : i + dir;
+    if (target >= 0 && target < CHAPS.length) p.currentTime = CHAPS[target].start + .01;
+  };
+  const on = (a, fn) => { try { navigator.mediaSession.setActionHandler(a, fn); } catch (e) {} };
+  on("play", () => p.play());
+  on("pause", () => p.pause());
+  on("seekbackward", () => jump(-15));
+  on("seekforward", () => jump(30));
+  on("previoustrack", () => chapter(-1));
+  on("nexttrack", () => chapter(1));
+  on("seekto", e => { if (e.seekTime != null) p.currentTime = e.seekTime; });
+}
+
+/* ---------- follow along ---------- */
+let wakeLock = null;
+async function keepAwake(on){
+  try {
+    if (on && !wakeLock && "wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+    if (!on && wakeLock) { wakeLock.release(); wakeLock = null; }
+  } catch (e) { /* denied or unsupported: follow-along still works, screen just sleeps */ }
+}
+$("#player").addEventListener("play",  () => keepAwake($("#follow").checked));
+$("#player").addEventListener("pause", () => keepAwake(false));
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && !$("#player").paused) keepAwake($("#follow").checked);
+});
+
+$("#player").addEventListener("timeupdate", () => {
+  if (!SEGS.length) return;
+  const t = $("#player").currentTime;
+  // Segments are ordered and non-overlapping, so a linear scan from the last
+  // hit is cheap and survives seeking backwards.
+  let i = SEGS.findIndex(s => t >= s.start && t < s.end);
+  if (i < 0) i = SEGS.findLastIndex(s => t >= s.start);
+  if (i < 0) return;
+  if (i !== lastActive){
+    lastActive = i;
+    document.querySelectorAll(".seg").forEach((p, n) => {
+      p.classList.toggle("active", n === i);
+      p.classList.toggle("done", n < i);
+    });
+  }
+  const seg = SEGS[i];
+  if (seg && seg.words && seg.words.length){
+    const k = seg.words.findIndex(w => t >= w[1] && t < w[2]);
+    const key = `${i}:${k}`;
+    if (key !== lastWord){
+      lastWord = key;
+      document.querySelectorAll(".w.on").forEach(el => el.classList.remove("on"));
+      const el = document.querySelector(`.w[data-s="${i}"][data-k="${k}"]`);
+      if (el) el.classList.add("on");
+    }
+  }
+  CHAPS.forEach((c, n) => {
+    const b = document.querySelector(`.chip[data-c="${n}"]`);
+    if (b) b.classList.toggle("on", t >= c.start && t < c.end);
+  });
+  if ($("#follow").checked){
+    const el = document.querySelector(`.seg[data-i="${i}"]`);
+    if (el) {
+      const box = $("#reader");
+      box.scrollTop = el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2;
+    }
+  }
+});
+</script>
+</body>
+</html>
