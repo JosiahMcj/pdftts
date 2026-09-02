@@ -86,6 +86,26 @@ class Tunnel:
         raise RuntimeError(
             f"cloudflared did not publish an address within {timeout:.0f}s")
 
+    def resolves_locally(self) -> bool:
+        """Whether this machine's resolver can see the published hostname.
+
+        A VPN resolver often cannot: it answers NXDOMAIN for a name created
+        seconds ago and caches that answer. The address is still fine — a phone
+        on cellular uses its carrier's DNS and reaches it — so this is worth
+        reporting as a note about *this machine*, not as a failure.
+        """
+        import socket
+        from urllib.parse import urlparse
+
+        host = urlparse(self.url).hostname
+        if not host:
+            return False
+        try:
+            socket.getaddrinfo(host, 443)
+            return True
+        except OSError:
+            return False
+
     def wait_until_reachable(self, timeout: float = 90.0) -> bool:
         """Poll the public address until Cloudflare's edge starts serving it.
 

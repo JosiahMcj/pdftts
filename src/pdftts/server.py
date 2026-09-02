@@ -547,7 +547,14 @@ def serve(host: str = "127.0.0.1", port: int = 8765, password: str = "",
         except RuntimeError as exc:
             say(exc)
             return
-        threading.Thread(target=link.wait_until_reachable, daemon=True).start()
+        def announce() -> None:
+            if link.wait_until_reachable():
+                return
+            if not link.resolves_locally():
+                say("\n  Note: this machine's DNS cannot resolve that address yet — a VPN"
+                    "\n  resolver often cannot. Your phone will still reach it.")
+
+        threading.Thread(target=announce, daemon=True).start()
 
     # Pay for the engine survey before the first request rather than during it,
     # so the page has its choices the moment it loads.

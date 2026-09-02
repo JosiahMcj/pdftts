@@ -303,6 +303,12 @@ one is generated and printed if you have not set one.
 > A published address is reachable by anyone who has it. The password is what
 > stands between it and the internet, so treat it like one.
 
+If your own machine cannot open the address it just printed, check what is
+resolving DNS for it. A VPN's resolver will answer NXDOMAIN for a hostname
+created seconds ago and then cache that answer; the address is fine, and a phone
+on cellular reaches it through its carrier's DNS. `pdftts` says so when it
+notices.
+
 ### A password, and reaching it from outside
 
 ```bash
@@ -397,7 +403,7 @@ I have not measured one.
 uv run pytest
 ```
 
-151 tests, running in about three seconds — none of them synthesize audio, so the
+153 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk

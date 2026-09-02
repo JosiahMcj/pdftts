@@ -124,3 +124,22 @@ def test_the_edge_answering_401_counts_as_reachable(monkeypatch):
     monkeypatch.setattr(tunnel.urllib.request, "urlopen", fake_open)
     assert link.wait_until_reachable(timeout=5)
     assert calls["n"] == 1
+
+
+def test_a_resolver_that_cannot_see_the_hostname_is_reported(monkeypatch):
+    """A VPN resolver answers NXDOMAIN for a name made seconds ago and caches it."""
+    import socket
+
+    link = tunnel.Tunnel(8765)
+    link.url = "https://plant-mood-clan.trycloudflare.com"
+
+    monkeypatch.setattr(tunnel_socket := socket, "getaddrinfo",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("NXDOMAIN")))
+    assert not link.resolves_locally()
+
+    monkeypatch.setattr(tunnel_socket, "getaddrinfo", lambda *a, **k: [("x",)])
+    assert link.resolves_locally()
+
+
+def test_no_url_means_nothing_to_resolve():
+    assert not tunnel.Tunnel(8765).resolves_locally()
