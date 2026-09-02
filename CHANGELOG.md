@@ -29,6 +29,15 @@
   token is ever stored.
 
 ### Fixed
+- **New did not start a new session.** The finished narration and its player
+  stayed on screen, and appeared under the pairing QR code on the Phone tab too.
+  New now clears the last render — it is already saved under Past — and the
+  player is scoped to the views it belongs to. A long paste is deliberately kept.
+- **The pairing QR handed out a VPN address.** Asking the routing table for "my
+  address" returns the tunnel when a VPN owns the default route, which a phone on
+  the same wifi cannot reach. The LAN address and the mesh address are now told
+  apart and offered separately — the first for a phone in the house, the second
+  for one out on cellular.
 - **The dashboard was dead in every browser.** The service-worker registration
   referenced `refreshOffline` twelve lines before its `const` declaration, which
   throws `ReferenceError` in the temporal dead zone and aborts the entire script:

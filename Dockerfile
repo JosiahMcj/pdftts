@@ -7,12 +7,16 @@
 #
 #   docker build -t pdftts .
 #   docker run --rm -p 8765:8765 -v "$PWD:/books" pdftts --serve --lan
-#   docker run --rm -v "$PWD:/books" pdftts /books/novel.epub --m4b
+#   docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/books" pdftts /books/novel.epub --m4b
+#
+# `--user` matters whenever output is written back to a bind mount: the files
+# belong to whoever runs the container, and without it they are written as this
+# image's own user — which usually cannot write to your directory at all.
 #
 # Models and finished chunks live in named volumes, so a rebuilt container does
 # not re-download Kokoro or re-synthesize what it already has:
-#   docker run --rm -v pdftts-models:/home/reader/.cache/huggingface \
-#              -v pdftts-cache:/home/reader/.cache/pdftts \
+#   docker run --rm --user "$(id -u):$(id -g)" \
+#              -v pdftts-models:/cache/huggingface -v pdftts-cache:/cache/pdftts \
 #              -v "$PWD:/books" pdftts /books/novel.epub
 
 FROM python:3.12-slim AS build
@@ -51,12 +55,18 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Not root: this container is handed a directory of the user's own books.
-RUN useradd --create-home --uid 1000 reader
+# The caches sit outside any home directory and are world-writable, so the image
+# still works when it is run as the caller's own uid — which is how anyone
+# writing output back to a bind mount has to run it.
+RUN useradd --create-home --uid 1000 reader \
+ && mkdir -p /cache/huggingface /cache/pdftts /data \
+ && chmod 1777 /cache /cache/huggingface /cache/pdftts /data
 COPY --from=build /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
-    HF_HOME=/home/reader/.cache/huggingface \
-    XDG_CACHE_HOME=/home/reader/.cache \
-    XDG_DATA_HOME=/home/reader/.local/share
+    HF_HOME=/cache/huggingface \
+    XDG_CACHE_HOME=/cache \
+    XDG_DATA_HOME=/data \
+    HOME=/cache
 
 USER reader
 WORKDIR /books

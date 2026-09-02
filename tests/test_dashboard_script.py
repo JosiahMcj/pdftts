@@ -105,3 +105,27 @@ def test_the_page_and_worker_agree_on_the_shell_url():
     """The worker caches "/" as the offline shell; the page is served from "/"."""
     worker = (PAGE.parent / "sw.js").read_text()
     assert '"/"' in worker and "SHELL_FILES" in worker
+
+
+def test_new_starts_a_new_session(script):
+    """The finished render belongs to the last session and is saved under Past."""
+    assert re.search(r"function newSession\s*\(", script)
+    assert 'if (v === "new") newSession();' in script
+    body = script[script.index("function newSession"):]
+    body = body[:body.index("\n}")]
+    for expected in ("clearInterval(timer)", "hidePlayer()", 'jobId = null'):
+        assert expected in body, f"newSession must {expected}"
+
+
+def test_the_player_is_not_shown_on_the_pairing_screen(script):
+    assert 'if (v === "phone") hidePlayer();' in script
+    assert re.search(r"function hidePlayer\s*\(", script)
+    body = script[script.index("function hidePlayer"):]
+    assert "pause()" in body[:body.index("\n}")], "leaving a view must stop the audio"
+
+
+def test_a_long_paste_survives_starting_a_new_session(script):
+    """Clearing the textarea because someone clicked the tab they are on loses work."""
+    body = script[script.index("function newSession"):]
+    body = body[:body.index("\n}")]
+    assert '$("#text").value = ""' not in body

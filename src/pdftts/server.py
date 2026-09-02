@@ -126,14 +126,36 @@ def index() -> str:
 
 @app.get("/api/pair")
 def pair(request: Request) -> dict:
-    """Everything a phone needs to connect, including a scannable QR."""
+    """Everything a phone needs to connect, including a scannable QR.
+
+    Two addresses, because they answer different questions: the LAN one works
+    for a phone in the house, and the mesh one keeps working when that phone is
+    out on cellular. Offering only the routing table's answer hands out the VPN
+    tunnel to someone standing next to the machine, which cannot be reached.
+    """
     import segno
 
     port = request.url.port or 8765
-    url = f"http://{lan_address()}:{port}/"
-    qr = segno.make(url, error="m")
-    return {"url": url, "svg": qr.svg_inline(scale=5, border=2, dark="#1d1c1a",
-                                             light="#ffffff")}
+    found = addresses()
+    def entry(ip: str) -> dict:
+        url = f"http://{ip}:{port}/"
+        return {"url": url,
+                "svg": segno.make(url, error="m").svg_inline(
+                    scale=5, border=2, dark="#1d1c1a", light="#ffffff")}
+
+    options = []
+    if found["lan"]:
+        options.append({**entry(found["lan"]), "kind": "lan",
+                        "label": "On this wifi",
+                        "note": "Your phone has to be on the same network."})
+    if found["mesh"]:
+        options.append({**entry(found["mesh"]), "kind": "mesh",
+                        "label": "From anywhere",
+                        "note": "Works over cellular, as long as your phone is on "
+                                "the same Tailscale or Meshnet network as this machine."})
+    primary = options[0] if options else entry("127.0.0.1")
+    # Kept flat for older clients that only understood one address.
+    return {"url": primary["url"], "svg": primary["svg"], "options": options}
 
 
 @app.get("/sw.js")
@@ -352,18 +374,86 @@ def download(job_id: str, fmt: str = "m4a"):
                         media_type="audio/mp4" if path.suffix == ".m4a" else "audio/wav")
 
 
+#: Interface name prefixes that are tunnels rather than real network cards.
+_TUNNELS = ("utun", "tun", "tap", "wg", "ppp", "ipsec", "gpd")
+
+
+def _interfaces() -> list[tuple[str, str]]:
+    """(interface, IPv4) for every configured interface, best effort."""
+    import re
+    import shutil
+    import subprocess
+
+    for cmd, pattern in (
+        (["ip", "-4", "-o", "addr"], r"^\d+:\s*(\S+)\s+inet\s+(\d+\.\d+\.\d+\.\d+)"),
+        (["ifconfig"], None),
+    ):
+        if not shutil.which(cmd[0]):
+            continue
+        try:
+            out = subprocess.run(cmd, capture_output=True, text=True, timeout=5).stdout
+        except Exception:
+            continue
+        if pattern:
+            return [(m.group(1), m.group(2))
+                    for line in out.splitlines() if (m := re.match(pattern, line))]
+        found, name = [], ""
+        for line in out.splitlines():
+            if line and not line[0].isspace():
+                name = line.split(":", 1)[0]
+            elif (m := re.search(r"\binet (\d+\.\d+\.\d+\.\d+)", line)):
+                found.append((name, m.group(1)))
+        return found
+    return []
+
+
+def _is_private(ip: str) -> bool:
+    a, b = (int(x) for x in ip.split(".")[:2])
+    return a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168)
+
+
+def _is_mesh(ip: str) -> bool:
+    """100.64.0.0/10 — the carrier-grade NAT range Tailscale and Meshnet use."""
+    a, b = (int(x) for x in ip.split(".")[:2])
+    return a == 100 and 64 <= b <= 127
+
+
+def addresses() -> dict[str, str]:
+    """Where this machine can be reached: on the local network, and over a mesh.
+
+    A VPN owns the default route, so asking the routing table for "my address"
+    returns the tunnel — which a phone on the same wifi cannot reach. The two are
+    genuinely different answers to different questions, so both are reported: the
+    LAN address for a phone in the house, the mesh address for one on cellular.
+    """
+    lan = mesh = ""
+    for name, ip in _interfaces():
+        if ip.startswith("127."):
+            continue
+        tunnel = name.startswith(_TUNNELS)
+        if _is_mesh(ip) and not mesh:
+            mesh = ip
+        elif _is_private(ip) and not tunnel and not lan:
+            lan = ip
+    if not lan:                                  # no interface list: ask the route
+        import socket
+
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            probe.connect(("10.255.255.255", 1))   # no packets sent; just picks a route
+            candidate = probe.getsockname()[0]
+            lan = "" if _is_mesh(candidate) else candidate
+        except Exception:
+            lan = ""
+        finally:
+            probe.close()
+    return {"lan": lan, "mesh": mesh}
+
+
 def lan_address() -> str:
     """This machine's address on the local network, for opening on a phone."""
-    import socket
-
-    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        probe.connect(("10.255.255.255", 1))    # no packets sent; just picks a route
-        return probe.getsockname()[0]
-    except Exception:
-        return socket.gethostbyname(socket.gethostname())
-    finally:
-        probe.close()
+    found = addresses()
+    return found["lan"] or found["mesh"] or "127.0.0.1"
 
 
 def serve(host: str = "127.0.0.1", port: int = 8765) -> None:

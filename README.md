@@ -238,15 +238,19 @@ silently producing nothing. Everything else works.
 ```bash
 docker build -t pdftts .
 docker run --rm -p 8765:8765 -v "$PWD:/books" pdftts --serve --lan
-docker run --rm -v "$PWD:/books" pdftts /books/novel.epub --m4b
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/books" pdftts /books/novel.epub --m4b
 ```
+
+`--user` matters whenever the container writes back to a bind mount: the output
+files belong to whoever ran it. Without it they are written as the image's own
+user, which usually cannot write to your directory at all.
 
 Keep the model weights and the resume cache in named volumes and a rebuilt
 container neither re-downloads Kokoro nor re-synthesizes what it already has:
 
 ```bash
-docker run --rm -v pdftts-models:/home/reader/.cache/huggingface \
-           -v pdftts-cache:/home/reader/.cache/pdftts \
+docker run --rm --user "$(id -u):$(id -g)" \
+           -v pdftts-models:/cache/huggingface -v pdftts-cache:/cache/pdftts \
            -v "$PWD:/books" pdftts /books/novel.epub
 ```
 
@@ -266,7 +270,7 @@ builds, narrates a file and answers on a published port — not a claim here.
 
 **Follow along** — as the audio plays, the text scrolls itself and highlights the **word** being spoken, not just the line. Kokoro reports per-token start and end times, so the highlight is exact rather than estimated. Click any line to jump there; chapter chips above the text jump between chapters and light up as you pass through them. Engines that cannot report timings fall back to sentence highlighting placed by character share, and the page says so rather than pretending.
 
-**Phone** — `pdftts --serve --lan` binds to your local network, and the **Phone** tab shows a QR code to scan. The Mac does the extraction and synthesis; the phone drives it and plays the result. The page installs to a home screen as a standalone app, exposes **lock-screen controls** (play/pause, 15 s back / 30 s forward, previous/next mapped to chapters), and holds a screen wake lock while following along so the text keeps scrolling.
+**Phone** — `pdftts --serve --lan` binds to your local network, and the **Phone** tab shows a QR code to scan. If this machine is also on a Tailscale or Meshnet network it shows a **second** QR for that address, which keeps working when the phone leaves the house and is on cellular. The two are genuinely different answers: a VPN owns the default route, so the address the routing table reports is the tunnel — useless to a phone standing next to the machine. The Mac does the extraction and synthesis; the phone drives it and plays the result. The page installs to a home screen as a standalone app, exposes **lock-screen controls** (play/pause, 15 s back / 30 s forward, previous/next mapped to chapters), and holds a screen wake lock while following along so the text keeps scrolling.
 
 **Save offline** — the interesting half. Tap it on any narration and a service worker downloads the audio *and* its text and timeline into the phone's cache. After that it plays with the laptop asleep and no network at all, follow-along included. Renders take real minutes on a laptop and are then wanted on a phone somewhere else; streaming from a machine that has to stay awake is the wrong shape for that. Saved narrations show an `offline` badge in the list, and the button becomes **Remove download**.
 
@@ -345,7 +349,7 @@ I have not measured one.
 uv run pytest
 ```
 
-114 tests, running in about three seconds — none of them synthesize audio, so the
+121 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk

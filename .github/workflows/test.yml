@@ -80,11 +80,13 @@ jobs:
         run: |
           mkdir -p books
           printf 'The first sentence. A second one follows it. And a third.\n' > books/sample.txt
-          docker run --rm -v "$PWD/books:/books" pdftts:ci /books/sample.txt --m4a --srt
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$PWD/books:/books" pdftts:ci /books/sample.txt --m4a --srt
           ls -l books/
           test -s books/sample.wav
           test -s books/sample.m4a
           test -s books/sample.srt
+          test "$(stat -c %u books/sample.wav)" = "$(id -u)"   # written as the caller
       - name: the dashboard answers over a published port
         run: |
           docker run -d --name dash -p 8765:8765 pdftts:ci --serve --lan
