@@ -1730,6 +1730,19 @@ wheels = [
 ]
 
 [[package]]
+name = "mobi"
+version = "0.4.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "loguru" },
+    { name = "standard-imghdr" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7f/fc/efbab42351ebdd594e23f069934bff882f1c15129f61cbff13d1990243b5/mobi-0.4.1.tar.gz", hash = "sha256:9b814f42cd3750d22377e8095d84974943b94dd8081a90a1c403c64c3602bd26", size = 106448, upload-time = "2025-09-14T12:59:17.28Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/02/cacca68175f8fbdb9d4cf81028e924e5d1d0c29c509fe6721d331ed61921/mobi-0.4.1-py3-none-any.whl", hash = "sha256:5490ea1d8e62c4d94352b6ba8eb117b9f9e5df2a1e8b38687c11d1f390cf86e5", size = 99813, upload-time = "2025-09-14T12:59:16.021Z" },
+]
+
+[[package]]
 name = "mojimoji"
 version = "0.0.13"
 source = { registry = "https://pypi.org/simple" }
@@ -2550,6 +2563,9 @@ dev = [
 ja = [
     { name = "misaki", extra = ["ja"] },
 ]
+kindle = [
+    { name = "mobi" },
+]
 piper = [
     { name = "piper-tts" },
 ]
@@ -2573,6 +2589,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.1.2" },
     { name = "misaki", extras = ["ja"], marker = "extra == 'ja'", specifier = ">=0.9.4" },
     { name = "misaki", extras = ["zh"], marker = "extra == 'zh'", specifier = ">=0.9.4" },
+    { name = "mobi", marker = "extra == 'kindle'", specifier = ">=0.3.3" },
     { name = "pdfplumber", specifier = ">=0.11.10" },
     { name = "piper-tts", marker = "extra == 'piper'", specifier = ">=1.7.0" },
     { name = "pypdf", specifier = ">=6.16.2" },
@@ -2584,7 +2601,7 @@ requires-dist = [
     { name = "soundfile", specifier = ">=0.14.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
 ]
-provides-extras = ["dev", "piper", "chatterbox", "ja", "zh"]
+provides-extras = ["dev", "piper", "chatterbox", "kindle", "ja", "zh"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -3956,6 +3973,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/43/06/ce1bb165c1f111c7d23a1ad17204d67224baa69725bb6857a264db61beaf/standard_chunk-3.13.0.tar.gz", hash = "sha256:4ac345d37d7e686d2755e01836b8d98eda0d1a3ee90375e597ae43aaf064d654", size = 4672, upload-time = "2024-10-30T16:18:28.326Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7a/90/a5c1084d87767d787a6caba615aa50dc587229646308d9420c960cb5e4c0/standard_chunk-3.13.0-py3-none-any.whl", hash = "sha256:17880a26c285189c644bd5bd8f8ed2bdb795d216e3293e6dbe55bbd848e2982c", size = 4944, upload-time = "2024-10-30T16:18:26.694Z" },
+]
+
+[[package]]
+name = "standard-imghdr"
+version = "3.13.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/8d/ab2620fbe2e348483c9cb776c3b7b3cc407899291a041d7fa026469b7cd1/standard_imghdr-3.13.0.tar.gz", hash = "sha256:8d9c68058d882f6fc3542a8d39ef9ff94d2187dc90bd0c851e0902776b7b7a42", size = 5511, upload-time = "2024-10-30T16:01:36.412Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/cb/e1da7e340586a078404c7e4328bfefc930867ace8a9a55916fd220cf9547/standard_imghdr-3.13.0-py3-none-any.whl", hash = "sha256:30a1bff5465605bb496f842a6ac3cc1f2131bf3025b0da28d4877d6d4b7cc8e9", size = 4639, upload-time = "2024-10-30T16:01:13.829Z" },
 ]
 
 [[package]]

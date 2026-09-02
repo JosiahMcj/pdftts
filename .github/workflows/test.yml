@@ -50,3 +50,41 @@ jobs:
           uv venv /tmp/probe
           VIRTUAL_ENV=/tmp/probe uv pip install dist/*.whl
           /tmp/probe/bin/pdftts --list-languages
+
+  docker:
+    # This image cannot be built on the machine I develop on — no Docker daemon
+    # there — so CI is what proves it works, not a claim in the README.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: pdftts:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: it runs, and knows what it can do
+        run: |
+          docker run --rm pdftts:ci --list-languages
+          docker run --rm pdftts:ci --list-engines
+      - name: it narrates a file and writes a tagged m4b
+        run: |
+          mkdir -p books
+          printf 'The first sentence. A second one follows it. And a third.\n' > books/sample.txt
+          docker run --rm -v "$PWD/books:/books" pdftts:ci /books/sample.txt --m4a --srt
+          ls -l books/
+          test -s books/sample.wav
+          test -s books/sample.m4a
+          test -s books/sample.srt
+      - name: the dashboard answers over a published port
+        run: |
+          docker run -d --name dash -p 8765:8765 pdftts:ci --serve --lan
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:8765/api/engines >/dev/null && break || sleep 2
+          done
+          curl -sf http://127.0.0.1:8765/ | grep -q "Drop a document here"
+          curl -sf "http://127.0.0.1:8765/api/voices?engine=kokoro" | grep -q af_heart
+          docker rm -f dash

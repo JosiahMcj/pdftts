@@ -167,22 +167,40 @@ def icon() -> Response:
     return Response(content=svg, media_type="image/svg+xml")
 
 
+#: The survey imports every backend to see which are installed, which costs about
+#: a second. The answer cannot change while the process runs — the hardware is
+#: fixed and the venv is not changing mid-run — so it is computed once.
+#: Before this, every page load spent that second showing "Checking what this
+#: machine can run…" before it could offer a choice.
+_SURVEY: dict | None = None
+_SURVEY_LOCK = threading.Lock()
+
+
+def _survey() -> dict:
+    global _SURVEY
+    with _SURVEY_LOCK:
+        if _SURVEY is None:
+            dev = device.probe()
+            best, why = engines.recommend(dev)
+            rows = []
+            for row in engines.survey(dev):
+                usable = row["installed"] and row["fits"]
+                voices_for = {}
+                if usable:
+                    try:
+                        eng = engines.get(row["id"])
+                        voices_for = {"list": eng.voices(), "default": eng.default_voice()}
+                    except Exception:
+                        usable = False
+                rows.append({**row, "usable": usable, "voices": voices_for})
+            _SURVEY = {"device": dev.describe(), "recommended": best,
+                       "why": why, "engines": rows}
+        return _SURVEY
+
+
 @app.get("/api/engines")
 def list_engines() -> dict:
-    dev = device.probe()
-    best, why = engines.recommend(dev)
-    rows = []
-    for row in engines.survey(dev):
-        usable = row["installed"] and row["fits"]
-        voices_for = {}
-        if usable:
-            try:
-                eng = engines.get(row["id"])
-                voices_for = {"list": eng.voices(), "default": eng.default_voice()}
-            except Exception:
-                usable = False
-        rows.append({**row, "usable": usable, "voices": voices_for})
-    return {"device": dev.describe(), "recommended": best, "why": why, "engines": rows}
+    return _survey()
 
 
 @app.get("/api/voices")
@@ -351,6 +369,9 @@ def lan_address() -> str:
 def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     import uvicorn
 
+    # Pay for the engine survey before the first request rather than during it,
+    # so the page has its choices the moment it loads.
+    threading.Thread(target=_survey, daemon=True).start()
     print(f"pdftts dashboard -> http://{host}:{port}")
     if host == "0.0.0.0":
         print(f"  on this network      -> http://{lan_address()}:{port}")

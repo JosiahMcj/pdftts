@@ -1,0 +1,30 @@
+# Publish to PyPI on a tagged release, using a Trusted Publisher — no token is
+# stored anywhere. Inert until the project is claimed on PyPI and this workflow
+# is registered as its publisher; until then, tagging simply does nothing.
+name: publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write        # what Trusted Publishing authenticates with
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: the wheel carries its assets
+        run: |
+          uv run --no-project python - <<'PY'
+          import glob, zipfile, sys
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          missing = [p for p in ("pdftts/web/index.html", "pdftts/web/sw.js",
+                                 "pdftts/vendor/ocrpdf.swift") if p not in names]
+          sys.exit(f"missing from wheel: {missing}" if missing else 0)
+          PY
+      - uses: pypa/gh-action-pypi-publish@release/v1

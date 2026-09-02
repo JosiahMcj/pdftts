@@ -6,7 +6,7 @@
 
 Turn documents into audiobooks on your own machine — a local web dashboard and a CLI, with **five interchangeable TTS engines** so you can trade quality against the hardware you actually have. Nothing leaves the machine: no API keys, no uploads, no per-character billing.
 
-Reads **PDF, EPUB, DOCX, HTML, Markdown and plain text**. Outputs **WAV, MP3, FLAC, OPUS, M4A, and chaptered M4B** with cover art, plus **word-level SRT/VTT subtitles** driven by real synthesizer timings. **54 voices across nine languages.**
+Reads **PDF, EPUB, MOBI, AZW3, DOCX, HTML, Markdown and plain text**. Outputs **WAV, MP3, FLAC, OPUS, M4A, and chaptered M4B** with cover art, plus **word-level SRT/VTT subtitles** driven by real synthesizer timings. **54 voices across nine languages.**
 
 ```bash
 pdftts --serve                          # dashboard at http://127.0.0.1:8765
@@ -44,13 +44,12 @@ from the case they mostly skip, and is honest about where they are ahead.
 
 **Where they are ahead, and I am not pretending otherwise:**
 
-- `ebook2audiobook` supports 1158 languages to my nine, and reads MOBI and AZW3, which I do not.
+- `ebook2audiobook` claims 1158 languages to my nine. That is not a gap I can close honestly — those come from a different model family.
 - `abogen` and `ebook2audiobook` ship a desktop GUI; mine is a local web page.
-- `epub_to_audiobook` and `ebook2audiobook` ship Docker images. I do not, because I have no Docker daemon on this machine to build and test one on, and I am not shipping an unverified Dockerfile.
 - `epub2tts` and `ebook2audiobook` offer XTTS/Coqui and Bark; I offer Chatterbox for cloning and stop there.
-- Several of them run on NVIDIA hardware I do not have. Everything here was measured on Apple Silicon; nothing claims a CUDA number.
+- Several of them run on NVIDIA hardware I do not have. Everything here was measured on Apple Silicon; nothing in this README claims a CUDA number.
 
-And the things they got right, which are now here too: chaptered M4B with cover art, word-level subtitles, EPUB/DOCX/Markdown input, multiple audio formats, folder conversion, and read-along highlighting.
+And the things they got right, which are now here too: chaptered M4B with cover art, word-level subtitles, EPUB/MOBI/AZW3/DOCX/Markdown input, multiple audio formats, folder conversion, Docker, and read-along highlighting.
 
 ## Why this exists
 
@@ -195,6 +194,19 @@ failed:
   scan-only.pdf: ValueError: no readable text found
 ```
 
+## Kindle books
+
+`.mobi`, `.azw`, `.azw3` and `.prc` are read by unpacking them, which yields the
+same XHTML an EPUB holds — so chapters, metadata and cover art all come through
+one code path rather than two. It is pure Python; no Calibre, no external tools.
+
+```bash
+uv sync --extra kindle
+pdftts novel.azw3 --m4b
+```
+
+DRM-protected files are not readable and say so. Nothing here strips anything.
+
 ## Install
 
 Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and `ffmpeg` for m4a output. OCR needs macOS with the Swift toolchain (`xcode-select --install`); everything else is cross-platform.
@@ -216,6 +228,33 @@ uvx --from git+https://github.com/JosiahMcj/pdftts pdftts --list-engines
 ```
 
 First run downloads model weights (~350 MB for Kokoro) and caches them. Piper fetches each voice on first use.
+
+### Docker
+
+The dashboard and CLI, minus OCR — Apple's Vision framework does not cross to
+Linux, so a scanned PDF in the image is refused with a clear message rather than
+silently producing nothing. Everything else works.
+
+```bash
+docker build -t pdftts .
+docker run --rm -p 8765:8765 -v "$PWD:/books" pdftts --serve --lan
+docker run --rm -v "$PWD:/books" pdftts /books/novel.epub --m4b
+```
+
+Keep the model weights and the resume cache in named volumes and a rebuilt
+container neither re-downloads Kokoro nor re-synthesizes what it already has:
+
+```bash
+docker run --rm -v pdftts-models:/home/reader/.cache/huggingface \
+           -v pdftts-cache:/home/reader/.cache/pdftts \
+           -v "$PWD:/books" pdftts /books/novel.epub
+```
+
+The image pulls CPU-only torch rather than the default CUDA build, runs as a
+non-root user, and defaults to `--serve --lan` because `127.0.0.1` inside a
+container is unreachable from outside it. I have no Docker daemon on the machine
+I develop on, so [CI](.github/workflows/test.yml) is what proves this image
+builds, narrates a file and answers on a published port — not a claim here.
 
 > **Chatterbox needs `setuptools<81`.** Its watermarker imports `pkg_resources`, which setuptools 81+ removed; without the pin it fails with a confusing `'NoneType' object is not callable`. The extra pins it for you.
 
@@ -259,6 +298,9 @@ pdftts --clear-cache
 
 `--dry-run` is the fast way to check extraction on a new document — it skips synthesis entirely.
 
+A single source that fails says why and exits non-zero; a folder finishes the
+rest of the queue and lists the failures at the end.
+
 ### Output formats
 
 `--m4b` writes a chaptered audiobook: EPUB chapters become real chapter markers, the jacket is attached as cover art, and title, author, publication date and language are written as tags — so a player can show it a shelf, navigate it, and remember your place. `--m4a`, `-f mp3|flac|opus` cover the rest. `--srt` / `--vtt` write subtitles at `--sub-mode sentence|phrase|word`.
@@ -294,6 +336,8 @@ I have not measured one.
 - Column detection assumes a single body column. True two-column journal layouts extract in visual order, not reading order.
 - OCR typos survive into the audio; the tool does not guess at word repairs, because guessing changes the text.
 - Equations, tables, and figure captions are read as whatever text they contain.
+- DRM-protected Kindle files cannot be read. Nothing here strips anything.
+- The Docker image has no OCR, for the same reason: Vision is macOS-only.
 
 ## Tests
 
@@ -301,20 +345,22 @@ I have not measured one.
 uv run pytest
 ```
 
-97 tests, running in about three seconds — none of them synthesize audio, so the
+109 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk
 merging, speech normalisation, follow-along timeline tiling, subtitle
 formatting, chapter marker mapping, document loaders, cover-art extraction,
+chapter-heading selection, navigation-page rejection,
 language-code widening, the resume cache (including that an interrupted run pays
 only for the rest, and that a corrupt entry is a miss rather than a crash), the
 voice catalogue, folder scanning and failure isolation, the dashboard API, the
 engine registry, memory budgeting, and hardware recommendations.
 
-[CI](.github/workflows/test.yml) runs them on Linux and macOS, and separately
-checks that the built wheel really contains the dashboard and the OCR helper — a
-wheel that omits them installs cleanly and fails at runtime.
+[CI](.github/workflows/test.yml) runs them on Linux and macOS, checks that the
+built wheel really contains the dashboard and the OCR helper — a wheel that omits
+them installs cleanly and fails at runtime — and builds the Docker image, then
+makes it narrate a file and answer on a published port.
 
 ## License
 

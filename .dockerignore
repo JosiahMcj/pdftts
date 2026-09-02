@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+dist
+build
+*.egg-info
+__pycache__
+.pytest_cache
+tests
+uv.lock
+*.wav
+*.m4a
+*.m4b
+*.mp3
+*.pdf
+*.epub

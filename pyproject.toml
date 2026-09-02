@@ -42,6 +42,8 @@ chatterbox = ["chatterbox-tts>=0.1.7", "resemble-perth>=1.0.1", "setuptools<81"]
 # Japanese and Mandarin need their own grapheme-to-phoneme backends. Japanese
 # additionally wants a dictionary that is too big to vendor: after installing,
 # run `uv run python -m unidic download` once (526 MB).
+# MOBI/AZW3. Pure Python (vendored KindleUnpack) — no Calibre, no external tools.
+kindle = ["mobi>=0.3.3"]
 ja = ["misaki[ja]>=0.9.4"]
 zh = ["misaki[zh]>=0.9.4"]
 
