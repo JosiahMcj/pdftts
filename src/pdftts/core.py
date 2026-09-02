@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import chapters as _chapters
-from . import chunk, clean, documents, engines, tts
+from . import cache, chunk, clean, documents, engines, tts
 
 
 @dataclass
@@ -17,6 +17,9 @@ class Document:
     title: str = ""
     author: str = ""
     ocr_used: bool = False
+    cover: bytes = b""
+    language: str = ""
+    published: str = ""
     parts: list[str] = field(default_factory=list)
     chapter_titles: list[str] = field(default_factory=list)
     #: which chapter each entry in `parts` belongs to
@@ -42,7 +45,8 @@ def _assemble(loaded: documents.Loaded, source: str) -> Document:
     return Document(
         text=loaded.text, pages=loaded.pages, source=source,
         title=loaded.title or source, author=loaded.author,
-        ocr_used=loaded.ocr_used, parts=parts,
+        ocr_used=loaded.ocr_used, cover=loaded.cover, language=loaded.language,
+        published=loaded.published, parts=parts,
         chapter_titles=titles, part_chapter=owners,
     )
 
@@ -72,12 +76,14 @@ def render(
     engine: str | engines.Engine | None = None,
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    store: cache.Store | None = None,
 ) -> tts.Rendered:
     """Render to `out` and return the timeline, so callers can follow the text."""
     if not doc.parts:
         raise ValueError("nothing to read: no text was recovered from the source")
     rendered = tts.synthesize(doc.parts, voice=voice, speed=speed, engine=engine,
-                              on_progress=on_progress, should_stop=should_stop)
+                              on_progress=on_progress, should_stop=should_stop,
+                              store=store)
     tts.write_wav(rendered.samples, out, rendered.sample_rate)
     return rendered
 

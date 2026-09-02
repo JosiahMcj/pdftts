@@ -33,22 +33,54 @@ class Loaded:
     author: str = ""
     pages: int = 0
     ocr_used: bool = False
+    cover: bytes = b""           # jacket image, when the source carries one
+    language: str = ""
+    published: str = ""
 
     @property
     def text(self) -> str:
         return "\n\n".join(c.text for c in self.chapters if c.text.strip())
 
 
-def _strip_markup(raw: str) -> str:
+def _strip_markup(raw: str, xml: bool = False) -> str:
+    """Text from markup, with block elements forced to break.
+
+    EPUB content is XHTML, so it parses with the XML reader; loose HTML from the
+    web needs the forgiving HTML one. Handing XHTML to the HTML parser mostly
+    works and warns loudly, which is a poor trade when the caller already knows
+    which it has.
+    """
     from bs4 import BeautifulSoup
 
-    soup = BeautifulSoup(raw, "lxml")
+    soup = BeautifulSoup(raw, "lxml-xml" if xml else "lxml")
     for tag in soup(["script", "style", "nav", "header", "footer"]):
         tag.decompose()
     # Block elements need a hard break or sentences run together.
     for tag in soup.find_all(["p", "div", "br", "li", "h1", "h2", "h3", "h4", "tr"]):
         tag.append("\n")
     return html.unescape(soup.get_text())
+
+
+def _cover_bytes(book) -> bytes:
+    """The jacket image, if the EPUB declares one.
+
+    EPUB 3 marks it with the `cover-image` property; EPUB 2 points at it from a
+    `<meta name="cover">` in the OPF. Both are common enough to be worth trying,
+    and a book with neither just goes out without a cover.
+    """
+    import ebooklib
+
+    for item in book.get_items_of_type(ebooklib.ITEM_COVER):
+        if content := item.get_content():
+            return content
+    for _, attrs in book.get_metadata("OPF", "cover") or []:
+        target = (attrs or {}).get("content")
+        if target and (item := book.get_item_with_id(target)):
+            return item.get_content() or b""
+    for item in book.get_items_of_type(ebooklib.ITEM_IMAGE):
+        if "cover" in item.get_name().lower():
+            return item.get_content() or b""
+    return b""
 
 
 def _epub(path: Path) -> Loaded:
@@ -60,12 +92,15 @@ def _epub(path: Path) -> Loaded:
 
     chapters: list[Chapter] = []
     for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
-        body = clean.clean(_strip_markup(item.get_content().decode("utf-8", "ignore")))
+        body = clean.clean(
+            _strip_markup(item.get_content().decode("utf-8", "ignore"), xml=True))
         if len(body) < 200:              # covers, nav pages, copyright stubs
             continue
         head = body.split("\n", 1)[0][:80].strip()
         chapters.append(Chapter(head or item.get_name(), body))
-    return Loaded(chapters=chapters, title=meta("title"), author=meta("creator"))
+    return Loaded(chapters=chapters, title=meta("title"), author=meta("creator"),
+                  cover=_cover_bytes(book), language=meta("language"),
+                  published=meta("date"))
 
 
 def _docx(path: Path) -> Loaded:

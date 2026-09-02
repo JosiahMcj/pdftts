@@ -1,28 +1,56 @@
 # pdftts
 
+[![tests](https://github.com/JosiahMcj/pdftts/actions/workflows/test.yml/badge.svg)](https://github.com/JosiahMcj/pdftts/actions/workflows/test.yml)
+[![python](https://img.shields.io/badge/python-3.12%2B-blue)](https://www.python.org/)
+[![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+
 Turn documents into audiobooks on your own machine — a local web dashboard and a CLI, with **five interchangeable TTS engines** so you can trade quality against the hardware you actually have. Nothing leaves the machine: no API keys, no uploads, no per-character billing.
 
-Reads **PDF, EPUB, DOCX, HTML, Markdown and plain text**. Outputs **WAV, MP3, FLAC, OPUS, M4A, and chaptered M4B**, plus **word-level SRT/VTT subtitles** driven by real synthesizer timings.
+Reads **PDF, EPUB, DOCX, HTML, Markdown and plain text**. Outputs **WAV, MP3, FLAC, OPUS, M4A, and chaptered M4B** with cover art, plus **word-level SRT/VTT subtitles** driven by real synthesizer timings. **54 voices across nine languages.**
 
 ```bash
 pdftts --serve                          # dashboard at http://127.0.0.1:8765
 pdftts --list-engines                   # what this machine can run, and what it should use
 pdftts book.epub --m4b --srt            # chaptered audiobook + matching subtitles
+pdftts shelf/ --m4b                     # convert a whole folder
 pdftts chapter.pdf --pages 12-40 --play
 ```
+
+Interrupt any of those and run it again: finished chunks are cached, so the
+second run picks up where the first stopped.
 
 ---
 
 ## How this differs from the other Kokoro audiobook tools
 
-There are several good ones — [audiblez](https://github.com/santinic/audiblez), [abogen](https://github.com/denizsafak/abogen), [kokoro-tts](https://github.com/nazdridoy/kokoro-tts), [OpenReader](https://github.com/richardr1126/openreader). Most start from EPUB, where the text is already clean markup. This one starts from the case they mostly skip:
+There are several good ones, and some are much bigger than this:
+[ebook2audiobook](https://github.com/DrewThomasson/ebook2audiobook),
+[audiblez](https://github.com/santinic/audiblez),
+[abogen](https://github.com/denizsafak/abogen),
+[epub_to_audiobook](https://github.com/p0n1/epub_to_audiobook),
+[epub2tts](https://github.com/aedocw/epub2tts),
+[kokoro-tts](https://github.com/nazdridoy/kokoro-tts),
+[OpenReader](https://github.com/richardr1126/OpenReader-WebUI).
+Most start from EPUB, where the text is already clean markup. This one starts
+from the case they mostly skip, and is honest about where they are ahead.
 
-- **Layout-aware PDF extraction.** Running heads, folios and rotated copyright notices are removed geometrically, so they are not read aloud mid-sentence. Most tools hand `extract_text()` straight to the synthesizer.
-- **OCR for scanned PDFs.** A scan with no text layer falls back to Apple's Vision framework — no download, no GPU, correct multi-column reading order. None of the tools above handle scans.
-- **Hardware-aware engine choice.** Five engines behind one interface, with a probe that reports what your machine can actually run and greys out the rest. The others are single-engine, or abstract over cloud providers.
+**Where this one is different:**
+
+- **Layout-aware PDF extraction.** Running heads, folios and rotated copyright notices are removed geometrically, so they are not read aloud mid-sentence. Most tools hand `extract_text()` straight to the synthesizer. This is the whole reason the project exists, and the section below shows what it sounds like when nobody does it.
+- **Resume after an interruption.** Finished chunks are cached by exactly the inputs that determine their audio, so a book that dies at chunk 900 of 1000 costs 100 chunks on the next run, not 1000. Only `epub2tts` and `ebook2audiobook` have anything comparable.
 - **Chunking built for speech, not for text.** Sentence splitting that does not break inside "T. S. Eliot" — a bug that sounds like the model glitching, not like a text problem.
+- **Hardware-aware engine choice.** Five engines behind one interface, with a probe that reports what your machine can actually run and greys out the rest, with the reason.
+- **Word-level read-along, on a phone, offline.** The page saves a narration and its timeline into the phone's cache and then plays it with the laptop asleep.
 
-And the things they got right, which are now here too: chaptered M4B, word-level subtitles, EPUB/DOCX/Markdown input, multiple audio formats, and read-along highlighting.
+**Where they are ahead, and I am not pretending otherwise:**
+
+- `ebook2audiobook` supports 1158 languages to my nine, and reads MOBI and AZW3, which I do not.
+- `abogen` and `ebook2audiobook` ship a desktop GUI; mine is a local web page.
+- `epub_to_audiobook` and `ebook2audiobook` ship Docker images. I do not, because I have no Docker daemon on this machine to build and test one on, and I am not shipping an unverified Dockerfile.
+- `epub2tts` and `ebook2audiobook` offer XTTS/Coqui and Bark; I offer Chatterbox for cloning and stop there.
+- Several of them run on NVIDIA hardware I do not have. Everything here was measured on Apple Silicon; nothing claims a CUDA number.
+
+And the things they got right, which are now here too: chaptered M4B with cover art, word-level subtitles, EPUB/DOCX/Markdown input, multiple audio formats, folder conversion, and read-along highlighting.
 
 ## Why this exists
 
@@ -91,6 +119,82 @@ It is also not pip-installable — clone the repo and point `MISOTTS_HOME` at it
 
 Engines are selectable in the dashboard too, with unusable ones greyed out and the reason shown.
 
+## Languages
+
+Kokoro publishes 54 voices across nine languages. Seven work on the base
+install; Japanese and Mandarin each need one extra, and say so rather than
+failing at synthesis time with an import error.
+
+```
+$ pdftts --list-languages
+  a  American English       20 voices
+  b  British English         8 voices
+  e  Spanish                 3 voices
+  f  French                  1 voice
+  h  Hindi                   4 voices
+  i  Italian                 2 voices
+  p  Brazilian Portuguese    3 voices
+  j  Japanese                5 voices  needs: uv sync --extra ja && uv run python -m unidic download
+  z  Mandarin Chinese        8 voices  needs: uv sync --extra zh
+```
+
+```bash
+pdftts libro.epub --lang i                    # Italian, default narrator
+pdftts libro.epub -v im_nicola                # or name the voice; it carries its language
+pdftts --list-voices --lang z                 # what Mandarin offers
+```
+
+A voice id encodes its own language, so `--lang` is only needed when you want a
+language's default narrator rather than a specific voice. Every code above was
+run on this machine before being listed. The dashboard groups the picker by
+language for the same reason — 54 entries in one list is a scrolling problem,
+not a choice.
+
+## Resume
+
+Synthesis is the expensive part, and it is perfectly reproducible: the same text,
+engine, voice and speed always produce the same audio. So every finished chunk is
+written to a cache keyed on exactly those four things, and a re-run replays what
+is already there.
+
+```
+$ pdftts long.txt                     # interrupted, or just slow
+5,674 chars | 17 chunks | ~6 min
+6.2 min
+$ pdftts long.txt                     # again
+6.2 min | 17 chunks reused
+```
+
+Measured on a 96 GB M3 Ultra, three cold/warm pairs with the model weights
+already downloaded: that 6.2-minute narration takes **22.6–23.6 s** to
+synthesize cold and **2.4–2.8 s** to replay, most of the second figure being
+interpreter and model start-up rather than work. The saving is the point on a
+book, not on a page — a chapter is fifteen minutes of CPU, and losing it to a
+closed laptop is the difference between finishing tonight and starting again.
+
+The key includes voice and speed deliberately. Changing either changes the
+audio, and quietly reusing a stale chunk would be worse than re-rendering it.
+`--no-cache` skips the cache entirely; `--clear-cache` empties it; the dashboard
+shows its size and can clear it too.
+
+## A whole folder at once
+
+```bash
+pdftts shelf/ --m4b                  # every readable document in the folder
+pdftts shelf/ -r --m4b               # and in its sub-folders
+```
+
+Files that are not documents are ignored, and so are the outputs of an earlier
+run — pointing this at the same folder twice does not try to narrate the
+narrations. One unreadable file costs only itself: the queue finishes and the
+failures are listed at the end.
+
+```
+2/3 converted, 96 min of audio (412 chunks reused from cache)
+failed:
+  scan-only.pdf: ValueError: no readable text found
+```
+
 ## Install
 
 Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and `ffmpeg` for m4a output. OCR needs macOS with the Swift toolchain (`xcode-select --install`); everything else is cross-platform.
@@ -100,7 +204,15 @@ git clone https://github.com/JosiahMcj/pdftts.git && cd pdftts
 uv sync                        # Kokoro, the dashboard and CLI
 uv sync --extra piper          # + tiny fast voices
 uv sync --extra chatterbox     # + best quality and voice cloning
+uv sync --extra ja             # + Japanese (then: uv run python -m unidic download)
+uv sync --extra zh             # + Mandarin
 uv run pdftts --serve
+```
+
+To try it without cloning:
+
+```bash
+uvx --from git+https://github.com/JosiahMcj/pdftts pdftts --list-engines
 ```
 
 First run downloads model weights (~350 MB for Kokoro) and caches them. Piper fetches each voice on first use.
@@ -109,9 +221,9 @@ First run downloads model weights (~350 MB for Kokoro) and caches them. Piper fe
 
 ## Dashboard
 
-`pdftts --serve` opens a single page with two views.
+`pdftts --serve` opens a single page with three views.
 
-**New** — drop a PDF or paste text, pick an engine, voice and speed, watch chunk-by-chunk progress. The engine picker greys out anything this machine cannot run and explains the trade-off as you select it. Scans are OCR'd automatically and the page says when that happened.
+**New** — drop a PDF or paste text, pick an engine, voice and speed, watch chunk-by-chunk progress. The engine picker greys out anything this machine cannot run and explains the trade-off as you select it; the voice picker is grouped by language, and a group whose extra is missing says which one. Scans are OCR'd automatically and the page says when that happened.
 
 **Follow along** — as the audio plays, the text scrolls itself and highlights the **word** being spoken, not just the line. Kokoro reports per-token start and end times, so the highlight is exact rather than estimated. Click any line to jump there; chapter chips above the text jump between chapters and light up as you pass through them. Engines that cannot report timings fall back to sentence highlighting placed by character share, and the page says so rather than pretending.
 
@@ -131,24 +243,33 @@ Putting the audio itself on a phone needs none of this — `--m4b` produces a ch
 
 ```bash
 pdftts book.pdf                          # → book.wav
-pdftts book.epub --m4b                   # chaptered audiobook, navigable in any player
+pdftts book.epub --m4b                   # chaptered audiobook with cover art
+pdftts shelf/ -r --m4b                   # a whole folder, sub-folders included
 pdftts paper.pdf --pages 12-40 -f mp3    # a page range, plus mp3
 pdftts notes.md -v am_michael -s 1.15    # different voice, slightly brisk
+pdftts libro.epub --lang i               # Italian
 pdftts talk.docx --srt --sub-mode word   # word-level subtitles
 pdftts book.pdf --dry-run                # print the extracted text, synthesize nothing
+pdftts book.pdf --no-cache               # ignore the resume cache
 cat article.txt | pdftts -               # stdin
 pdftts --list-voices --engine piper
+pdftts --list-languages
+pdftts --clear-cache
 ```
 
 `--dry-run` is the fast way to check extraction on a new document — it skips synthesis entirely.
 
 ### Output formats
 
-`--m4b` writes a chaptered audiobook: EPUB chapters become real chapter markers with title and author metadata, so a player can navigate them and remember your place. `--m4a`, `-f mp3|flac|opus` cover the rest. `--srt` / `--vtt` write subtitles at `--sub-mode sentence|phrase|word`.
+`--m4b` writes a chaptered audiobook: EPUB chapters become real chapter markers, the jacket is attached as cover art, and title, author, publication date and language are written as tags — so a player can show it a shelf, navigate it, and remember your place. `--m4a`, `-f mp3|flac|opus` cover the rest. `--srt` / `--vtt` write subtitles at `--sub-mode sentence|phrase|word`.
+
+Two details that are easy to get wrong and silently lose: cover art has to be an MP4 video stream flagged `attached_pic`, or players treat it as a video track; and the language tag is a per-stream ISO 639-2 code, so the two-letter code an EPUB declares is widened before it is written and dropped if it cannot be mapped.
 
 ## Voices
 
-`pdftts --list-voices` shows the voices for the current engine (`--list-voices --engine piper` for another). Kokoro ships eleven US/UK voices; `af_heart` is the default narrator, `am_michael` and `bm_george` are the male options. Chatterbox has one built-in voice and clones any other from reference audio.
+`pdftts --list-voices` shows the voices for the current engine — add `--engine piper` for another, or `--lang z` to narrow Kokoro to one language. Kokoro ships 54 voices across nine languages; `af_heart` is the default narrator, `am_michael` and `bm_george` are the English male options. Chatterbox has one built-in voice and clones any other from reference audio.
+
+Voices I have listened to carry a note on how they sound. The rest are listed by language and gender only — I am not going to describe a voice I have not heard.
 
 ## Performance
 
@@ -158,6 +279,13 @@ pdftts --list-voices --engine piper
 | Chatterbox | won't fit | 0.4× realtime |
 
 A 47-minute chapter under Kokoro: ~15 minutes of compute, 130 MB as WAV, 24 MB as m4a.
+
+Re-rendering something already in the cache, on the M3 Ultra: 6.2 minutes of
+audio takes 22.6–23.6 s cold and 2.4–2.8 s warm over three runs, and most of the
+warm figure is interpreter and model start-up.
+
+No CUDA figures appear anywhere in this README. I do not have an NVIDIA card, so
+I have not measured one.
 
 ## Limitations
 
@@ -173,7 +301,20 @@ A 47-minute chapter under Kokoro: ~15 minutes of compute, 130 MB as WAV, 24 MB a
 uv run pytest
 ```
 
-52 tests covering running-head removal, folio normalisation, drop caps, de-hyphenation, chunking bounds, column detection, rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk merging, speech normalisation, follow-along timeline tiling, subtitle formatting, chapter marker mapping, document loaders, the engine registry, memory budgeting, and hardware recommendations.
+97 tests, running in about three seconds — none of them synthesize audio, so the
+suite stays usable as a loop. They cover running-head removal, folio
+normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
+rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk
+merging, speech normalisation, follow-along timeline tiling, subtitle
+formatting, chapter marker mapping, document loaders, cover-art extraction,
+language-code widening, the resume cache (including that an interrupted run pays
+only for the rest, and that a corrupt entry is a miss rather than a crash), the
+voice catalogue, folder scanning and failure isolation, the dashboard API, the
+engine registry, memory budgeting, and hardware recommendations.
+
+[CI](.github/workflows/test.yml) runs them on Linux and macOS, and separately
+checks that the built wheel really contains the dashboard and the OCR helper — a
+wheel that omits them installs cleanly and fails at runtime.
 
 ## License
 

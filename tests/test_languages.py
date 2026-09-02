@@ -1,0 +1,65 @@
+"""The Kokoro voice catalogue: nine languages, and honest labels."""
+import pytest
+
+from pdftts.engines import kokoro_engine as ke
+
+
+def test_every_language_has_voices_and_a_default():
+    for code in ke.LANGUAGES:
+        voices = ke._catalogue(code)
+        assert voices, code
+        assert ke.DEFAULT_VOICE[code] in voices, code
+
+
+def test_the_catalogue_matches_the_published_voice_set():
+    # 54 voices in hexgrad/Kokoro-82M at the time these were listed.
+    assert len(ke._catalogue()) == 54
+    assert sum(len(v) for v in ke._VOICES.values()) == 54
+
+
+def test_a_voice_id_carries_its_own_language():
+    assert ke.language_of("af_heart") == "a"
+    assert ke.language_of("zm_yunxi") == "z"
+    assert ke.language_of("if_sara") == "i"
+
+
+def test_an_unknown_prefix_falls_back_to_english():
+    # Piper-style ids reach here if a voice is passed to the wrong engine.
+    assert ke.language_of("en_US-amy-medium") == "a"
+    assert ke.language_of("") == "a"
+
+
+def test_descriptions_name_the_language_and_sex():
+    assert ke.describe("im_nicola") == "Italian male"
+    assert ke.describe("zf_xiaoni") == "Mandarin Chinese female"
+
+
+def test_hand_written_notes_survive_only_where_they_exist():
+    # I only describe timbre for voices I have actually listened to.
+    assert ke.describe("af_heart").endswith("warm, natural; best all-round narrator")
+    assert "—" not in ke.describe("af_alloy")
+
+
+def test_the_two_languages_needing_extras_say_so():
+    needs = {c: extra for c, (_, extra) in ke.LANGUAGES.items() if extra}
+    assert needs == {"j": "ja", "z": "zh"}
+
+
+def test_a_missing_extra_becomes_an_instruction_not_a_traceback():
+    message = ke.KokoroEngine._missing("j", ModuleNotFoundError("no module named 'pyopenjtalk'"))
+    assert "Japanese" in message
+    assert "uv sync --extra ja" in message
+    assert "unidic download" in message           # the 526 MB dictionary is separate
+
+
+def test_a_base_language_reraises_rather_than_inventing_a_hint():
+    boom = RuntimeError("something else went wrong")
+    with pytest.raises(RuntimeError, match="something else"):
+        ke.KokoroEngine._missing("a", boom)
+
+
+def test_the_engine_filters_by_language():
+    eng = ke.KokoroEngine()
+    assert set(eng.voices("f")) == {"ff_siwis"}
+    assert len(eng.voices("a")) == 20
+    assert len(eng.voices()) == 54

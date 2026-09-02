@@ -16,7 +16,8 @@ from pathlib import Path
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
-from . import audio, core, device, documents, engines, library, subtitles
+from . import audio, cache, core, device, documents, engines, library, subtitles
+from .engines import kokoro_engine
 
 def _asset_dir(name: str) -> Path:
     """Assets sit next to the package when installed, and at the repo root in a checkout."""
@@ -42,6 +43,7 @@ class Job:
     minutes: float = 0.0
     ocr_used: bool = False
     preview: str = ""
+    reused: int = 0                 # chunks replayed from the resume cache
     entry_id: str = ""              # library entry once the render is saved
     wav: Path | None = None
     m4a: Path | None = None
@@ -52,7 +54,8 @@ class Job:
             "id": self.id, "source": self.source, "state": self.state,
             "done": self.done, "total": self.total, "detail": self.detail,
             "minutes": round(self.minutes, 1), "ocr_used": self.ocr_used,
-            "preview": self.preview, "entry_id": self.entry_id,
+            "preview": self.preview, "reused": self.reused,
+            "entry_id": self.entry_id,
             "wav": bool(self.wav), "m4a": bool(self.m4a),
             "percent": round(100 * self.done / self.total) if self.total else 0,
         }
@@ -85,7 +88,9 @@ def _run(job: Job, doc_source: Path | str, voice: str, speed: float,
 
         wav = _workdir / f"{job.id}.wav"
         rendered = core.render(doc, wav, voice=voice, speed=speed, engine=engine,
-                               on_progress=progress, should_stop=job.cancel.is_set)
+                               on_progress=progress, should_stop=job.cancel.is_set,
+                               store=cache.Store())
+        job.reused = rendered.reused
         if job.cancel.is_set():
             job.state = "cancelled"
             return
@@ -181,10 +186,37 @@ def list_engines() -> dict:
 
 
 @app.get("/api/voices")
-def list_voices(engine: str = "") -> dict:
+def list_voices(engine: str = "", lang: str = "") -> dict:
+    """Voices for an engine, grouped by language when the engine has more than one.
+
+    Kokoro publishes 54 voices across nine languages; a flat list of that size is
+    a scrolling problem rather than a choice, so the grouping ships with the data.
+    """
     eng = engines.get(engine or None)
+    if lang and lang not in kokoro_engine.LANGUAGES:
+        raise HTTPException(400, f"unknown language {lang!r}")
+    catalogue = eng.voices(lang) if (lang and hasattr(eng, "languages")) else eng.voices()
+    groups = []
+    if hasattr(eng, "languages"):
+        for code, (name, extra) in eng.languages().items():
+            members = eng.voices(code)
+            if members:
+                groups.append({"code": code, "name": name, "extra": extra,
+                               "voices": [{"id": k, "note": v} for k, v in members.items()]})
     return {"default": eng.default_voice(),
-            "voices": [{"id": k, "note": v} for k, v in eng.voices().items()]}
+            "voices": [{"id": k, "note": v} for k, v in catalogue.items()],
+            "languages": groups}
+
+
+@app.get("/api/cache")
+def cache_stats() -> dict:
+    """How much finished audio is held for resume, so it can be seen and cleared."""
+    return {"bytes": cache.Store().usage()}
+
+
+@app.delete("/api/cache")
+def cache_clear() -> dict:
+    return {"freed": cache.Store().clear()}
 
 
 @app.post("/api/jobs")

@@ -282,9 +282,18 @@ function loadVoices(){
       `${e.cloning ? " · clones a reference voice" : ""}`
     : "";
   fetch("/api/voices?engine=" + encodeURIComponent(id)).then(r => r.json()).then(d => {
-    $("#voice").innerHTML = d.voices
-      .map(v => `<option value="${v.id}"${v.id === d.default ? " selected" : ""}>${v.id} — ${v.note}</option>`)
-      .join("");
+    const opt = v =>
+      `<option value="${v.id}"${v.id === d.default ? " selected" : ""}>${v.id} — ${v.note}</option>`;
+    // Kokoro publishes 54 voices in nine languages. A flat list that long is a
+    // scrolling problem rather than a choice, so group it; engines with one
+    // language keep the plain list.
+    const groups = (d.languages || []).filter(g => g.voices.length);
+    $("#voice").innerHTML = groups.length > 1
+      ? groups.map(g => {
+          const need = g.extra ? ` — needs the ${g.extra} extra` : "";
+          return `<optgroup label="${g.name}${need}">${g.voices.map(opt).join("")}</optgroup>`;
+        }).join("")
+      : d.voices.map(opt).join("");
   });
 }
 $("#engine").onchange = loadVoices;

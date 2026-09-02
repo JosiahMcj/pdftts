@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import cache as _cache
 from . import chunk as _chunk
 from . import engines
 
@@ -35,6 +36,7 @@ class Rendered:
     sample_rate: int
     segments: list[Segment]
     part_spans: list[tuple[float, float]] = field(default_factory=list)
+    reused: int = 0              # chunks served from the cache rather than synthesized
 
     @property
     def duration(self) -> float:
@@ -94,11 +96,17 @@ def synthesize(
     engine: str | engines.Engine | None = None,
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    store: "_cache.Store | None" = None,
 ) -> Rendered:
-    """Render chunks, recording where each one starts so callers can follow along."""
+    """Render chunks, recording where each one starts so callers can follow along.
+
+    Finished chunks go through `store`, so a run interrupted partway through a
+    book picks up where it stopped instead of paying for the same audio twice.
+    """
     import numpy as np
 
     eng = engine if isinstance(engine, engines.Engine) else engines.get(engine)
+    store = store if store is not None else _cache.Store(enabled=False)
     voice = voice or eng.default_voice()
     if voice not in eng.voices() and eng.spec.id != "piper":
         # Piper accepts any published voice id, so only validate the closed sets.
@@ -112,13 +120,19 @@ def synthesize(
     for i, part in enumerate(parts):
         if should_stop and should_stop():
             break
-        spoken = eng.say(part, voice, speed)
-        wav = spoken.samples
+        digest = _cache.key(part, eng.spec.id, voice, speed, eng.sample_rate)
+        hit = store.get(digest)
+        if hit is not None:
+            wav, spoken_words = hit
+        else:
+            spoken = eng.say(part, voice, speed)
+            wav, spoken_words = spoken.samples, spoken.words
+            store.put(digest, wav, spoken_words)
         start = cursor / eng.sample_rate
         cursor += len(wav)
         stop = cursor / eng.sample_rate
         part_spans.append((start, stop))
-        segments.extend(_subdivide(part, start, stop, len(segments), spoken.words))
+        segments.extend(_subdivide(part, start, stop, len(segments), spoken_words))
         audio.append(wav)
         gap = np.zeros(int(eng.sample_rate * GAP_SECONDS), dtype="float32")
         audio.append(gap)
@@ -128,7 +142,7 @@ def synthesize(
 
     samples = (np.concatenate(audio).astype("float32") if audio
                else np.zeros(0, dtype="float32"))
-    return Rendered(samples, eng.sample_rate, segments, part_spans)
+    return Rendered(samples, eng.sample_rate, segments, part_spans, reused=store.hits)
 
 
 def write_wav(samples, path: Path, sample_rate: int) -> Path:

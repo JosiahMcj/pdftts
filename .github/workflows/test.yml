@@ -1,0 +1,52 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # Both platforms matter: OCR is macOS-only, so Linux proves the rest of the
+    # pipeline does not quietly depend on it.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --locked
+      - run: uv run pytest -q
+
+  build:
+    # A wheel that omits the dashboard or the OCR helper installs fine and fails
+    # at runtime, so check the assets are actually inside it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: the wheel carries its assets
+        run: |
+          uv run --no-project python - <<'PY'
+          import glob, zipfile, sys
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          missing = [p for p in ("pdftts/web/index.html", "pdftts/web/sw.js",
+                                 "pdftts/vendor/ocrpdf.swift") if p not in names]
+          sys.exit(f"missing from wheel: {missing}" if missing else 0)
+          PY
+      - name: it installs and runs from the wheel alone
+        run: |
+          uv venv /tmp/probe
+          VIRTUAL_ENV=/tmp/probe uv pip install dist/*.whl
+          /tmp/probe/bin/pdftts --list-languages
