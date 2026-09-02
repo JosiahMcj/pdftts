@@ -229,7 +229,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 const sw = () => navigator.serviceWorker && navigator.serviceWorker.controller;
-const refreshOffline = () => sw() && sw().postMessage({action:"list"});
+function refreshOffline(){ return sw() && sw().postMessage({action:"list"}); }
 function paintOffline(){
   document.querySelectorAll("[data-off]").forEach(el => {
     const on = OFFLINE.has(el.dataset.off);

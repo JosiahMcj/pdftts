@@ -25,6 +25,8 @@ jobs:
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }      # the dashboard-script test executes the page
       - run: uv sync --locked
       - run: uv run pytest -q
 
@@ -66,6 +68,10 @@ jobs:
           tags: pdftts:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: the phonemiser model is baked in, not downloaded at runtime
+        run: |
+          docker run --rm --entrypoint python pdftts:ci -c \
+            "import spacy.util; assert spacy.util.is_package('en_core_web_sm')"
       - name: it runs, and knows what it can do
         run: |
           docker run --rm pdftts:ci --list-languages

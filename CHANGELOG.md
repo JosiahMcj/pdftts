@@ -29,6 +29,13 @@
   token is ever stored.
 
 ### Fixed
+- **The dashboard was dead in every browser.** The service-worker registration
+  referenced `refreshOffline` twelve lines before its `const` declaration, which
+  throws `ReferenceError` in the temporal dead zone and aborts the entire script:
+  no engine list, no voice list, and every button on the page inert. It looked
+  like a slow network. The callback is now a hoisted function declaration, and
+  the script is executed in a browser-shaped environment in the test suite so
+  this class of error cannot ship again.
 - EPUB content is XHTML and was being parsed with the HTML parser, which warned
   on every book and is the less reliable of the two.
 - A Piper-style voice id passed to Kokoro selected a pipeline from its first

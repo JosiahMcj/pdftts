@@ -345,13 +345,15 @@ I have not measured one.
 uv run pytest
 ```
 
-109 tests, running in about three seconds — none of them synthesize audio, so the
+114 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk
 merging, speech normalisation, follow-along timeline tiling, subtitle
 formatting, chapter marker mapping, document loaders, cover-art extraction,
 chapter-heading selection, navigation-page rejection,
+Kindle unpacking, the dashboard script actually running to completion in a
+browser-shaped environment,
 language-code widening, the resume cache (including that an interrupted run pays
 only for the rest, and that a corrupt entry is a miss rather than a crash), the
 voice catalogue, folder scanning and failure isolation, the dashboard API, the

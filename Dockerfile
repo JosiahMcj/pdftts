@@ -33,6 +33,12 @@ COPY web ./web
 COPY vendor ./vendor
 RUN uv venv /opt/venv \
  && VIRTUAL_ENV=/opt/venv uv pip install --no-cache . \
+ # Kokoro's English phonemiser calls spacy.cli.download() the first time it runs,
+ # which needs pip or uv and a network. Neither belongs in the runtime image, so
+ # the model is baked in here and the download never happens.
+ && VIRTUAL_ENV=/opt/venv uv run --no-project python -m spacy download en_core_web_sm \
+ && VIRTUAL_ENV=/opt/venv uv run --no-project python -c \
+      "import spacy.util, sys; sys.exit(0 if spacy.util.is_package('en_core_web_sm') else 'spacy model missing')" \
  && find /opt/venv -name '__pycache__' -type d -prune -exec rm -rf {} +
 
 
