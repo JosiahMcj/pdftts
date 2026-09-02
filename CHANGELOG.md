@@ -28,6 +28,21 @@
 - A release workflow that publishes to PyPI through a Trusted Publisher, so no
   token is ever stored.
 
+- **`--tunnel`: a phone on cellular, with nothing installed on it.** Publishes a
+  temporary `trycloudflare.com` address for the run and shows it as a QR on the
+  Phone tab. The address points at your own machine and dies with the process, so
+  two people running `pdftts` get two separate addresses to their own machines
+  rather than sharing anyone's server. It refuses to publish without a password,
+  generating one if you did not set it, and it ignores any `~/.cloudflared`
+  config it finds — otherwise it silently runs *that* tunnel instead.
+- **A password for the dashboard.** `--password` (or `PDFTTS_PASSWORD`) gates
+  every route, not just the page — the audio, the library and the service worker
+  included. Any username is accepted; the password is what is checked, because a
+  single-user dashboard does not need a user list.
+- **`--public-url`**, for when the dashboard sits behind a tunnel or reverse
+  proxy: the machine cannot discover its own public hostname, so it is told, and
+  the Phone tab offers it as the QR that works on cellular.
+
 ### Fixed
 - **New did not start a new session.** The finished narration and its player
   stayed on screen, and appeared under the pairing QR code on the Phone tab too.

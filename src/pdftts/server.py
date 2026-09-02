@@ -6,6 +6,9 @@ that is cleaned up when the server exits.
 """
 from __future__ import annotations
 
+import hmac
+import os
+import secrets
 import shutil
 import tempfile
 import threading
@@ -63,6 +66,50 @@ class Job:
 
 JOBS: dict[str, Job] = {}
 app = FastAPI(title="pdftts")
+
+#: Set by --password, or the PDFTTS_PASSWORD environment variable. Empty means
+#: the dashboard is open to anything that can reach it, which is the right
+#: default on 127.0.0.1 and the wrong one anywhere else.
+PASSWORD = os.environ.get("PDFTTS_PASSWORD", "")
+
+#: Set by --public-url when this is published through a tunnel or reverse proxy.
+#: The machine cannot discover its own public hostname, so it has to be told.
+PUBLIC_URL = os.environ.get("PDFTTS_PUBLIC_URL", "")
+
+
+def _authorised(header: str | None) -> bool:
+    """Constant-time check of an HTTP Basic credential.
+
+    Any username is accepted; only the password is checked. A dashboard with one
+    user does not need a user list, and asking someone to remember a username
+    they invented is a way to lock them out of their own machine.
+    """
+    import base64
+    import binascii
+
+    if not PASSWORD:
+        return True
+    if not header or not header.lower().startswith("basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header.split(None, 1)[1], validate=True).decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, IndexError):
+        return False
+    _, _, supplied = decoded.partition(":")
+    return hmac.compare_digest(supplied, PASSWORD)
+
+
+@app.middleware("http")
+async def require_password(request: Request, call_next):
+    """Gate every route, not just the interesting ones.
+
+    The audio, the library JSON and the service worker are all as sensitive as
+    the page that lists them, and a gate with holes in it is not a gate.
+    """
+    if not _authorised(request.headers.get("authorization")):
+        return Response(status_code=401, content="Authentication required.",
+                        headers={"WWW-Authenticate": 'Basic realm="pdftts", charset="UTF-8"'})
+    return await call_next(request)
 
 
 def _run(job: Job, doc_source: Path | str, voice: str, speed: float,
@@ -137,23 +184,32 @@ def pair(request: Request) -> dict:
 
     port = request.url.port or 8765
     found = addresses()
-    def entry(ip: str) -> dict:
-        url = f"http://{ip}:{port}/"
+    def entry_url(url: str) -> dict:
         return {"url": url,
                 "svg": segno.make(url, error="m").svg_inline(
                     scale=5, border=2, dark="#1d1c1a", light="#ffffff")}
 
+    def entry(ip: str) -> dict:
+        return entry_url(f"http://{ip}:{port}/")
+
     options = []
+    if PUBLIC_URL:
+        options.append({**entry_url(PUBLIC_URL.rstrip("/") + "/"), "kind": "public",
+                        "label": "From anywhere",
+                        "note": "Published address — works on cellular with nothing "
+                                "installed on the phone."})
     if found["lan"]:
         options.append({**entry(found["lan"]), "kind": "lan",
                         "label": "On this wifi",
                         "note": "Your phone has to be on the same network."})
     if found["mesh"]:
         options.append({**entry(found["mesh"]), "kind": "mesh",
-                        "label": "From anywhere",
+                        "label": "Over your mesh",
                         "note": "Works over cellular, as long as your phone is on "
                                 "the same Tailscale or Meshnet network as this machine."})
     primary = options[0] if options else entry("127.0.0.1")
+    for option in options:
+        option["needs_password"] = bool(PASSWORD)
     # Kept flat for older clients that only understood one address.
     return {"url": primary["url"], "svg": primary["svg"], "options": options}
 
@@ -427,7 +483,8 @@ def addresses() -> dict[str, str]:
     LAN address for a phone in the house, the mesh address for one on cellular.
     """
     lan = mesh = ""
-    for name, ip in _interfaces():
+    interfaces = _interfaces()
+    for name, ip in interfaces:
         if ip.startswith("127."):
             continue
         tunnel = name.startswith(_TUNNELS)
@@ -435,7 +492,7 @@ def addresses() -> dict[str, str]:
             mesh = ip
         elif _is_private(ip) and not tunnel and not lan:
             lan = ip
-    if not lan:                                  # no interface list: ask the route
+    if not interfaces:            # nothing to read: fall back to asking the route
         import socket
 
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -456,18 +513,72 @@ def lan_address() -> str:
     return found["lan"] or found["mesh"] or "127.0.0.1"
 
 
-def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
+def serve(host: str = "127.0.0.1", port: int = 8765, password: str = "",
+          public_url: str = "", tunnel: bool = False) -> None:
+    import functools
     import uvicorn
+
+    # Redirected output is block-buffered, which hides the address and password
+    # until the server stops — exactly the two lines a caller is waiting for.
+    say = functools.partial(print, flush=True)
+
+    from . import tunnel as _tunnel
+
+    global PASSWORD, PUBLIC_URL
+    if password:
+        PASSWORD = password
+    PUBLIC_URL = public_url or PUBLIC_URL
+
+    link: "_tunnel.Tunnel | None" = None
+    generated = ""
+    if tunnel:
+        if not _tunnel.available():
+            say(_tunnel.INSTALL_HINT)
+            return
+        if not PASSWORD:
+            # The address is public for the life of the process. Opening it with
+            # no password is not a thing to do by accident, so one is made rather
+            # than the run being refused — and it is printed where it cannot be
+            # missed.
+            generated = PASSWORD = secrets.token_urlsafe(12)
+        link = _tunnel.Tunnel(port)
+        try:
+            PUBLIC_URL = link.start()
+        except RuntimeError as exc:
+            say(exc)
+            return
+        threading.Thread(target=link.wait_until_reachable, daemon=True).start()
 
     # Pay for the engine survey before the first request rather than during it,
     # so the page has its choices the moment it loads.
     threading.Thread(target=_survey, daemon=True).start()
-    print(f"pdftts dashboard -> http://{host}:{port}")
+    say(f"pdftts dashboard -> http://{host}:{port}")
+    if PUBLIC_URL:
+        # Not gated on --lan: a tunnel reaches this machine without it, and the
+        # published address is the whole point of having started one.
+        say(f"  published at         -> {PUBLIC_URL}")
     if host == "0.0.0.0":
-        print(f"  on this network      -> http://{lan_address()}:{port}")
-        print("  Reachable by anything on your LAN. There is no authentication,")
-        print("  so only do this on a network you trust.")
+        found = addresses()
+        if found["lan"]:
+            say(f"  on this network      -> http://{found['lan']}:{port}")
+        if found["mesh"]:
+            say(f"  over your mesh       -> http://{found['mesh']}:{port}")
+    if host == "0.0.0.0" or PUBLIC_URL:
+        if PASSWORD:
+            say("  Password required. Any username; the password is what is checked.")
+        else:
+            say("  Reachable by anything on your LAN. There is NO password —")
+            say("  pass --password to set one, and do set one before publishing this")
+            say("  anywhere beyond a network you trust.")
+    if link:
+        say("\n  This address is public while the server runs, and disappears when")
+        say("  it stops. The next run gets a different one.")
+        if generated:
+            say(f"\n  password: {generated}")
+            say("  (any username; pass --password to choose your own)")
     try:
         uvicorn.run(app, host=host, port=port, log_level="warning")
     finally:
+        if link:
+            link.stop()
         shutil.rmtree(_workdir, ignore_errors=True)

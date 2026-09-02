@@ -57,6 +57,17 @@ def build_parser() -> argparse.ArgumentParser:
                    help="bind address; use --lan instead to expose on your network")
     p.add_argument("--lan", action="store_true",
                    help="serve on the local network so a phone or tablet can use it")
+    p.add_argument("--password", default="",
+                   help="require this password (any username). Set one before "
+                        "exposing the dashboard beyond a network you trust; "
+                        "PDFTTS_PASSWORD works too and keeps it out of your shell history")
+    p.add_argument("--tunnel", action="store_true",
+                   help="publish a temporary https address for this run, so a phone "
+                        "can reach it over cellular with nothing installed. Needs "
+                        "cloudflared; sets a password if you have not")
+    p.add_argument("--public-url",
+                   help="the address this is published at, when it sits behind a "
+                        "tunnel or reverse proxy — shown as a QR on the Phone tab")
     return p
 
 
@@ -191,7 +202,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.serve:
         from .server import serve
-        serve(host="0.0.0.0" if args.lan else args.host, port=args.port)
+        serve(host="0.0.0.0" if args.lan else args.host, port=args.port,
+              password=args.password, public_url=args.public_url or "",
+              tunnel=args.tunnel)
         return 0
 
     if not args.source:

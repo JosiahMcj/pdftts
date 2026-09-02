@@ -10,6 +10,7 @@ Reads **PDF, EPUB, MOBI, AZW3, DOCX, HTML, Markdown and plain text**. Outputs **
 
 ```bash
 pdftts --serve                          # dashboard at http://127.0.0.1:8765
+pdftts --serve --tunnel                 # ...reachable from your phone on cellular
 pdftts --list-engines                   # what this machine can run, and what it should use
 pdftts book.epub --m4b --srt            # chaptered audiobook + matching subtitles
 pdftts shelf/ --m4b                     # convert a whole folder
@@ -276,7 +277,54 @@ builds, narrates a file and answers on a published port — not a claim here.
 
 If a render finishes while you are in another tab or app, the page raises a notification rather than making you check.
 
-> `--lan` serves with **no authentication** to anything on the network. Use it on a network you trust; the default binding stays `127.0.0.1`.
+> `--lan` serves to anything on the network. The default binding stays `127.0.0.1`.
+
+### From a phone that is not on your wifi
+
+```bash
+pdftts --serve --tunnel
+```
+
+That publishes a temporary `https://…trycloudflare.com` address for this run and
+prints it with a generated password. Scan it from the **Phone** tab and the
+dashboard works over cellular with nothing installed on the phone — no VPN for it
+to join, no router to forward, no account anywhere.
+
+The address belongs to your machine and to that run: it points at your laptop,
+it dies when you stop the server, and the next run gets a different one. Two
+people running `pdftts` get two separate addresses pointing at their own
+machines. Nobody is sharing a server, and nobody's documents pass through anyone
+else's computer.
+
+It needs [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+(`brew install cloudflared`), and it will not open an address without a password —
+one is generated and printed if you have not set one.
+
+> A published address is reachable by anyone who has it. The password is what
+> stands between it and the internet, so treat it like one.
+
+### A password, and reaching it from outside
+
+```bash
+pdftts --serve --lan --password "something long"
+PDFTTS_PASSWORD="something long" pdftts --serve --lan   # keeps it out of shell history
+```
+
+Any username is accepted; the password is what is checked. It gates **every**
+route — the audio, the library JSON and the service worker are as sensitive as
+the page that lists them, and a gate with holes in it is not a gate.
+
+Set one before the dashboard is reachable from anywhere you do not control. To
+publish it through a tunnel or reverse proxy, tell it the address it is published
+at so the Phone tab can offer that as a QR code:
+
+```bash
+pdftts --serve --password "something long" --public-url https://read.example.com
+```
+
+That address is the one that works on cellular with nothing installed on the
+phone. Without it, the Phone tab offers your wifi address and — if this machine
+is on a Tailscale or Meshnet network — that one too.
 
 Putting the audio itself on a phone needs none of this — `--m4b` produces a chaptered audiobook that Books, Audiobookshelf and every podcast app already understand, including remembering your position.
 
@@ -349,7 +397,7 @@ I have not measured one.
 uv run pytest
 ```
 
-121 tests, running in about three seconds — none of them synthesize audio, so the
+151 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk
