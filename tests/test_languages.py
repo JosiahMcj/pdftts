@@ -63,3 +63,46 @@ def test_the_engine_filters_by_language():
     assert set(eng.voices("f")) == {"ff_siwis"}
     assert len(eng.voices("a")) == 20
     assert len(eng.voices()) == 54
+
+
+# --- first run on a fresh install ------------------------------------------
+
+def test_the_model_download_is_pointed_at_the_current_environment(monkeypatch):
+    """Without this, a fresh `pip install pdftts` fails on the first narration.
+
+    spaCy's downloader shells out to uv, which refuses with "No virtual
+    environment found" unless VIRTUAL_ENV is set — and it is not, when the
+    console script is run by path rather than through an activated shell.
+    """
+    import sys
+
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(sys, "prefix", "/somewhere/.venv")
+    monkeypatch.setattr(sys, "base_prefix", "/usr")
+    ke._allow_model_download()
+    import os
+
+    assert os.environ["VIRTUAL_ENV"] == "/somewhere/.venv"
+
+
+def test_an_activated_environment_is_left_alone(monkeypatch):
+    import os
+    import sys
+
+    monkeypatch.setenv("VIRTUAL_ENV", "/the/one/the/user/chose")
+    monkeypatch.setattr(sys, "prefix", "/somewhere/else")
+    monkeypatch.setattr(sys, "base_prefix", "/usr")
+    ke._allow_model_download()
+    assert os.environ["VIRTUAL_ENV"] == "/the/one/the/user/chose"
+
+
+def test_a_system_python_is_not_given_a_fake_virtualenv(monkeypatch):
+    """Claiming a venv that does not exist would break the download differently."""
+    import os
+    import sys
+
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(sys, "prefix", "/usr")
+    monkeypatch.setattr(sys, "base_prefix", "/usr")
+    ke._allow_model_download()
+    assert "VIRTUAL_ENV" not in os.environ

@@ -418,7 +418,7 @@ I have not measured one.
 uv run pytest
 ```
 
-160 tests, running in about three seconds — none of them synthesize audio, so the
+163 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk

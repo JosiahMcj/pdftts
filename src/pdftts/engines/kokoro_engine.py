@@ -1,9 +1,30 @@
 """Kokoro-82M — the default. Small, quick, and steady over long documents."""
 from __future__ import annotations
 
+import os
+import sys
 import warnings
 
 from .base import Engine, Spec, Spoken
+
+
+def _allow_model_download() -> None:
+    """Let spaCy install its English model on first use.
+
+    Kokoro's English phonemiser calls `spacy.cli.download()` the first time it
+    runs. That shells out to pip or uv, and uv refuses with "No virtual
+    environment found" unless VIRTUAL_ENV is set — which it is not when the
+    console script is run by its full path rather than through an activated
+    shell. The result is that a fresh `pip install pdftts` fails on the very
+    first narration, which is the worst possible moment.
+
+    Pointing VIRTUAL_ENV at the interpreter's own prefix is enough, and it is
+    only set when it is missing, so an activated environment is left alone.
+    """
+    if os.environ.get("VIRTUAL_ENV"):
+        return
+    if sys.prefix != getattr(sys, "base_prefix", sys.prefix):   # inside a venv
+        os.environ["VIRTUAL_ENV"] = sys.prefix
 
 #: lang_code -> (language, pip extra needed beyond the base install)
 #: Kokoro keys its pipeline off the first letter of the voice id. Every code
@@ -128,6 +149,7 @@ class KokoroEngine(Engine):
         lang = language_of(voice)
         if lang not in self._pipes:
             warnings.filterwarnings("ignore")
+            _allow_model_download()
             from kokoro import KPipeline
             try:
                 self._pipes[lang] = KPipeline(lang_code=lang, repo_id="hexgrad/Kokoro-82M")

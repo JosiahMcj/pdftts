@@ -47,6 +47,14 @@
   the Phone tab offers it as the QR that works on cellular.
 
 ### Fixed
+- **The first narration failed on a fresh install.** Kokoro's English phonemiser
+  downloads a spaCy model the first time it runs, which shells out to uv — and uv
+  refuses with "No virtual environment found" unless `VIRTUAL_ENV` is set, which
+  it is not when the console script is run by path rather than through an
+  activated shell. So `pip install pdftts` followed by `pdftts book.txt` fell over
+  at the worst possible moment. The environment is now pointed at its own prefix.
+- The test suite exited 134 on Linux: every test passed and then torch's thread
+  pool aborted at interpreter shutdown.
 - The three pairing QR codes rendered at different sizes, because a longer URL
   needs more modules and the SVG carried a fixed width instead of a viewBox.
 - **New did not start a new session.** The finished narration and its player
