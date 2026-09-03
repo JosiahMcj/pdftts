@@ -59,12 +59,12 @@ def test_lan_and_mesh_addresses_are_told_apart():
     from pdftts import server
 
     assert server._is_private("192.168.1.9")
-    assert server._is_private("10.11.138.11")
+    assert server._is_private("10.0.4.17")
     assert server._is_private("172.20.0.4")
     assert not server._is_private("172.32.0.1")      # outside 172.16–31
-    assert not server._is_private("100.117.48.205")  # that is CGNAT, not a LAN
+    assert not server._is_private("100.88.4.17")      # that is CGNAT, not a LAN
 
-    assert server._is_mesh("100.117.48.205")         # Meshnet / Tailscale
+    assert server._is_mesh("100.88.4.17")            # Meshnet / Tailscale
     assert server._is_mesh("100.64.0.1")
     assert not server._is_mesh("100.128.0.1")        # just outside the range
     assert not server._is_mesh("100.63.255.255")
@@ -74,9 +74,9 @@ def test_a_vpn_tunnel_does_not_become_the_wifi_address(monkeypatch):
     from pdftts import server
 
     monkeypatch.setattr(server, "_interfaces", lambda: [
-        ("lo0", "127.0.0.1"), ("en0", "10.11.138.11"), ("utun4", "100.117.48.205")])
-    assert server.addresses() == {"lan": "10.11.138.11", "mesh": "100.117.48.205"}
-    assert server.lan_address() == "10.11.138.11"
+        ("lo0", "127.0.0.1"), ("en0", "10.0.4.17"), ("utun4", "100.88.4.17")])
+    assert server.addresses() == {"lan": "10.0.4.17", "mesh": "100.88.4.17"}
+    assert server.lan_address() == "10.0.4.17"
 
 
 def test_a_machine_with_only_a_mesh_still_offers_it(monkeypatch):
