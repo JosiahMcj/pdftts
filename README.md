@@ -20,6 +20,13 @@ pdftts chapter.pdf --pages 12-40 --play
 Interrupt any of those and run it again: finished chunks are cached, so the
 second run picks up where the first stopped.
 
+![The pdftts dashboard: a drop zone for a document, an engine picker with the
+recommendation for this machine, and a voice picker grouped by language.](docs/dashboard.png)
+
+The dashboard probes the machine it is running on and says what it can actually
+run, and why — the engine list above is what a 96 GB M3 Ultra sees. On an 8 GB
+laptop Chatterbox is greyed out with the reason attached.
+
 ---
 
 ## How this differs from the other Kokoro audiobook tools
