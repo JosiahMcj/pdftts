@@ -16,6 +16,8 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from urllib.parse import quote
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
@@ -77,6 +79,15 @@ PASSWORD = os.environ.get("PDFTTS_PASSWORD", "")
 PUBLIC_URL = os.environ.get("PDFTTS_PUBLIC_URL", "")
 
 
+#: Name of the cookie that carries a session once a password has been accepted.
+COOKIE = "pdftts_session"
+
+#: A random value for this process. The cookie holds this rather than the
+#: password, so the password itself is never stored in the browser and a
+#: restart invalidates every session.
+_SESSION = secrets.token_urlsafe(24)
+
+
 def _authorised(header: str | None) -> bool:
     """Constant-time check of an HTTP Basic credential.
 
@@ -105,11 +116,39 @@ async def require_password(request: Request, call_next):
 
     The audio, the library JSON and the service worker are all as sensitive as
     the page that lists them, and a gate with holes in it is not a gate.
+
+    Three ways in, because a phone is not a keyboard:
+      * a session cookie, once any of the others has worked;
+      * `?k=` in the URL, which is what the pairing QR carries — typing a
+        sixteen-character password on a phone to open your own laptop is a
+        good way to never use the feature;
+      * ordinary HTTP Basic, for curl and for anyone who would rather type it.
     """
-    if not _authorised(request.headers.get("authorization")):
-        return Response(status_code=401, content="Authentication required.",
-                        headers={"WWW-Authenticate": 'Basic realm="pdftts", charset="UTF-8"'})
-    return await call_next(request)
+    if not PASSWORD:
+        return await call_next(request)
+
+    if hmac.compare_digest(request.cookies.get(COOKIE, ""), _SESSION):
+        return await call_next(request)
+
+    key = request.query_params.get("k", "")
+    if key and hmac.compare_digest(key, PASSWORD):
+        # Swap the key for a cookie and drop it from the address, so the
+        # password stops travelling in every subsequent request and in every
+        # link the page makes.
+        clean = request.url.remove_query_params("k")
+        response = Response(status_code=303, headers={"Location": str(clean)})
+        response.set_cookie(COOKIE, _SESSION, httponly=True, samesite="lax",
+                            max_age=60 * 60 * 24 * 30, path="/")
+        return response
+
+    if _authorised(request.headers.get("authorization")):
+        response = await call_next(request)
+        response.set_cookie(COOKIE, _SESSION, httponly=True, samesite="lax",
+                            max_age=60 * 60 * 24 * 30, path="/")
+        return response
+
+    return Response(status_code=401, content="Authentication required.",
+                    headers={"WWW-Authenticate": 'Basic realm="pdftts", charset="UTF-8"'})
 
 
 def _run(job: Job, doc_source: Path | str, voice: str, speed: float,
@@ -185,9 +224,16 @@ def pair(request: Request) -> dict:
     port = request.url.port or 8765
     found = addresses()
     def entry_url(url: str) -> dict:
+        # The QR carries the password; the printed address does not, so the
+        # page can be read over someone's shoulder without handing it over.
+        scannable = f"{url}?k={quote(PASSWORD)}" if PASSWORD else url
+        # omitsize gives a viewBox instead of fixed width/height. A longer URL
+        # needs more modules, so without it every code comes back a different
+        # size on screen and the row looks broken.
         return {"url": url,
-                "svg": segno.make(url, error="m").svg_inline(
-                    scale=5, border=2, dark="#1d1c1a", light="#ffffff")}
+                "svg": segno.make(scannable, error="m").svg_inline(
+                    scale=5, border=2, dark="#1d1c1a", light="#ffffff",
+                    omitsize=True)}
 
     def entry(ip: str) -> dict:
         return entry_url(f"http://{ip}:{port}/")

@@ -320,6 +320,14 @@ Any username is accepted; the password is what is checked. It gates **every**
 route — the audio, the library JSON and the service worker are as sensitive as
 the page that lists them, and a gate with holes in it is not a gate.
 
+**Scanning the QR on the Phone tab is the whole login.** The code carries the
+password, the server swaps it for a session cookie and drops it from the address;
+typing a sixteen-character password into a phone to open your own laptop is a
+good way to never use the feature. The address printed next to the code does
+*not* carry it, so the page can be read over your shoulder without handing it
+over — and the cookie holds a random per-run token, not the password, so
+restarting the server ends every session.
+
 Set one before the dashboard is reachable from anywhere you do not control. To
 publish it through a tunnel or reverse proxy, tell it the address it is published
 at so the Phone tab can offer that as a QR code:
@@ -403,7 +411,7 @@ I have not measured one.
 uv run pytest
 ```
 
-153 tests, running in about three seconds — none of them synthesize audio, so the
+160 tests, running in about three seconds — none of them synthesize audio, so the
 suite stays usable as a loop. They cover running-head removal, folio
 normalisation, drop caps, de-hyphenation, chunking bounds, column detection,
 rotated-glyph rejection, abbreviation-safe sentence splitting, runt-chunk

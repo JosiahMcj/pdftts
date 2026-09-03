@@ -69,11 +69,19 @@
   select option:disabled{color:var(--muted)}
 
   /* follow-along reader */
-  .qrbox{display:flex;flex-wrap:wrap;gap:22px;justify-content:center}
-  .pairopt{margin:0;text-align:center;max-width:280px}
-  .pairopt figcaption{font-size:.86rem;line-height:1.5;margin-bottom:10px}
-  .pairopt svg{border-radius:10px}
-  .pairopt .meta{margin-top:8px}
+  /* One row of equal cards. A QR for a long URL has more modules than one for
+     a short URL, so the SVGs come back different sizes — the width is pinned
+     here instead, or the codes look like a mistake. */
+  .qrbox{display:grid;gap:18px;justify-content:center;
+         grid-template-columns:repeat(auto-fit,minmax(190px,220px))}
+  .pairopt{margin:0;text-align:center;display:flex;flex-direction:column;gap:10px}
+  .pairopt figcaption{font-size:.9rem;font-weight:600}
+  .pairopt .qr{background:#fff;border-radius:12px;padding:10px;line-height:0}
+  .pairopt .qr svg{width:100%;height:auto;display:block;shape-rendering:crispEdges}
+  .pairopt .addr{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+                 font-size:.74rem;color:var(--dim,#9a938a);overflow-wrap:anywhere;
+                 line-height:1.45}
+  .pairopt .meta{margin:0;font-size:.8rem;line-height:1.5}
   #reader{max-height:46vh;overflow-y:auto;padding:6px 4px;margin-top:16px;
           border-top:1px solid var(--line);scroll-behavior:smooth}
   .seg{margin:0 0 .7em;padding:6px 10px;border-radius:7px;cursor:pointer;
@@ -402,13 +410,19 @@ async function loadPair(){
     const d = await (await fetch("/api/pair")).json();
     const options = d.options && d.options.length ? d.options : [{url: d.url, svg: d.svg,
       label: "Scan this", note: ""}];
-    $("#pairmsg").innerHTML = options.length > 1
-      ? "Two ways in \u2014 scan whichever fits where your phone is."
-      : `Scan this, or open <span class="url">${options[0].url}</span> on your phone.`;
+    const gated = options.some(o => o.needs_password);
+    $("#pairmsg").innerHTML = (options.length > 1
+        ? "Scan whichever fits where your phone is."
+        : "Scan this on your phone.")
+      + (gated
+        ? " The code carries the password, so scanning is the whole login \u2014 " +
+          "typing the address by hand will ask you for it."
+        : "");
     $("#qrbox").innerHTML = options.map(o => `
       <figure class="pairopt">
-        <figcaption><b>${o.label}</b><br><span class="url">${o.url}</span></figcaption>
-        ${o.svg}
+        <figcaption>${o.label}</figcaption>
+        <div class="qr">${o.svg}</div>
+        <div class="addr">${o.url}</div>
         <p class="meta">${o.note}</p>
       </figure>`).join("");
     $("#pairnote").innerHTML =

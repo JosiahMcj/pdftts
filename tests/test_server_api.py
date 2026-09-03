@@ -102,3 +102,17 @@ def test_pairing_offers_each_way_in_with_its_own_qr(client, monkeypatch):
         assert "<svg" in option["svg"]
     # The flat fields stay, so an older cached page still finds one address.
     assert body["url"] == body["options"][0]["url"]
+
+
+def test_every_qr_scales_to_the_same_size(client, monkeypatch):
+    """A longer URL needs more modules; without a viewBox the codes render
+    at different sizes and the row looks like a mistake."""
+    from pdftts import server
+
+    monkeypatch.setattr(server, "PASSWORD", "")
+    monkeypatch.setattr(server, "PUBLIC_URL",
+                        "https://adapted-discussions-theoretical-joins.trycloudflare.com")
+    monkeypatch.setattr(server, "addresses", lambda: {"lan": "10.0.0.5", "mesh": ""})
+    for option in client.get("/api/pair").json()["options"]:
+        assert "viewBox" in option["svg"], option["label"]
+        assert "width=" not in option["svg"].split(">")[0], option["label"]

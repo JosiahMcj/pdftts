@@ -35,6 +35,9 @@
   rather than sharing anyone's server. It refuses to publish without a password,
   generating one if you did not set it, and it ignores any `~/.cloudflared`
   config it finds — otherwise it silently runs *that* tunnel instead.
+- **Scanning the pairing QR logs you in.** The code carries the password and the
+  server exchanges it for a session cookie, then drops it from the address. The
+  address shown beside the code does not carry it.
 - **A password for the dashboard.** `--password` (or `PDFTTS_PASSWORD`) gates
   every route, not just the page — the audio, the library and the service worker
   included. Any username is accepted; the password is what is checked, because a
@@ -44,6 +47,8 @@
   the Phone tab offers it as the QR that works on cellular.
 
 ### Fixed
+- The three pairing QR codes rendered at different sizes, because a longer URL
+  needs more modules and the SVG carried a fixed width instead of a viewBox.
 - **New did not start a new session.** The finished narration and its player
   stayed on screen, and appeared under the pairing QR code on the Phone tab too.
   New now clears the last render — it is already saved under Past — and the
