@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.2
+
+### Fixed
+
+- **`uv tool install pdftts` and `uvx pdftts` produced something that could not
+  narrate.** Both pick the newest Python they can find, and on 3.14 Kokoro's
+  espeak-ng fallback looks for its phoneme data on the machine the wheel was
+  built on rather than the one it is installed on. `requires-python` now stops
+  at 3.13, so pip and `uv pip` choose a version that works. `uv tool install`
+  builds its environment before reading that, so it can still land on 3.14 —
+  there, Kokoro now refuses with a sentence naming the fix, because the espeak-ng
+  library prints a stranger's home directory and kills the process before Python
+  can catch anything.
+
 ## 0.2.1
 
 ### Fixed

@@ -106,3 +106,35 @@ def test_a_system_python_is_not_given_a_fake_virtualenv(monkeypatch):
     monkeypatch.setattr(sys, "base_prefix", "/usr")
     ke._allow_model_download()
     assert "VIRTUAL_ENV" not in os.environ
+
+
+def test_python_314_gets_an_explanation_not_an_espeak_error(monkeypatch):
+    """The raw failure names the build machine's home directory and explains nothing."""
+    import sys
+
+    monkeypatch.setattr(sys, "version_info", (3, 14, 0, "final", 0))
+    note = ke.KokoroEngine._python_too_new()
+    assert "3.13" in note and "uv tool install --python 3.13" in note
+
+    boom = RuntimeError("Error processing file '/Users/runner/.../phontab'")
+    with pytest.raises(RuntimeError, match="does not work on"):
+        ke.KokoroEngine._missing("a", boom)
+
+
+def test_a_supported_python_adds_no_note(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(sys, "version_info", (3, 13, 0, "final", 0))
+    assert ke.KokoroEngine._python_too_new() == ""
+    with pytest.raises(RuntimeError, match="something else"):
+        ke.KokoroEngine._missing("a", RuntimeError("something else"))
+
+
+def test_python_314_is_refused_before_the_native_library_can_die(monkeypatch):
+    """espeak-ng prints a build-machine path and kills the process, so the check
+    has to happen before Kokoro is imported at all."""
+    import sys
+
+    monkeypatch.setattr(sys, "version_info", (3, 14, 0, "final", 0))
+    with pytest.raises(RuntimeError, match="Kokoro cannot run here"):
+        ke.KokoroEngine()._pipeline("af_heart")

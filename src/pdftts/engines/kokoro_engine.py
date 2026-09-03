@@ -148,6 +148,11 @@ class KokoroEngine(Engine):
     def _pipeline(self, voice: str):
         lang = language_of(voice)
         if lang not in self._pipes:
+            # Checked before anything is imported: on 3.14 the espeak-ng library
+            # prints a path from the machine it was built on and kills the
+            # process outright, so there is nothing left to catch afterwards.
+            if note := self._python_too_new():
+                raise RuntimeError("Kokoro cannot run here." + note)
             warnings.filterwarnings("ignore")
             _allow_model_download()
             from kokoro import KPipeline
@@ -158,9 +163,30 @@ class KokoroEngine(Engine):
         return self._pipes[lang]
 
     @staticmethod
+    def _python_too_new() -> str:
+        """A note for 3.14, where this installs cleanly and cannot narrate.
+
+        Kokoro's espeak-ng fallback loads phoneme data through espeakng-loader,
+        which on 3.14 resolves to the path of the machine the wheel was built on.
+        The dependency versions are identical to a working 3.13 install, so this
+        is the interpreter, not the resolution — and the error it produces names
+        a stranger's home directory, which explains nothing.
+        """
+        if sys.version_info < (3, 14):
+            return ""
+        major, minor = sys.version_info[0], sys.version_info[1]
+        return (f"\n\nThis is Python {major}.{minor}, "
+                "which Kokoro's phonemiser does not work on: it looks for its "
+                "speech data on the machine the wheel was built on. Use 3.12 or "
+                "3.13 — with uv that is `uv tool install --python 3.13 pdftts`, "
+                "or `uv venv --python 3.13` for a project.")
+
+    @staticmethod
     def _missing(lang: str, exc: Exception) -> str:
         name, extra = LANGUAGES[lang]
         if not extra:
+            if note := KokoroEngine._python_too_new():
+                raise RuntimeError(f"{exc}{note}") from exc
             raise exc
         hint = f"uv sync --extra {extra}"
         if extra == "ja":
@@ -177,6 +203,8 @@ class KokoroEngine(Engine):
         pipeline = self._pipeline(voice)
         try:
             results = list(pipeline(text, voice=voice, speed=speed))
+        except RuntimeError:
+            raise
         except Exception as exc:
             raise RuntimeError(self._missing(language_of(voice), exc)) from exc
         for result in results:

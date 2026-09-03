@@ -217,7 +217,7 @@ DRM-protected files are not readable and say so. Nothing here strips anything.
 
 ## Install
 
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and `ffmpeg` for m4a output. OCR needs macOS with the Swift toolchain (`xcode-select --install`); everything else is cross-platform.
+Requires Python 3.12 or 3.13 (**not 3.14** — Kokoro's espeak-ng fallback cannot find its phoneme data there), [uv](https://docs.astral.sh/uv/), and `ffmpeg` for m4a output. OCR needs macOS with the Swift toolchain (`xcode-select --install`); everything else is cross-platform.
 
 ```bash
 git clone https://github.com/JosiahMcj/pdftts.git && cd pdftts
@@ -232,8 +232,13 @@ uv run pdftts --serve
 To try it without cloning:
 
 ```bash
-uvx --from git+https://github.com/JosiahMcj/pdftts pdftts --list-engines
+uv tool install --python 3.13 pdftts     # the CLI and dashboard, on their own
+pipx install pdftts                       # same thing, if you prefer pipx
 ```
+
+**Pass `--python 3.13`.** `uv tool install` picks the newest interpreter it can
+find and builds the environment before it reads what the package supports, so on
+a machine with 3.14 it will otherwise install something that cannot narrate.
 
 First run downloads model weights (~350 MB for Kokoro) and caches them. Piper fetches each voice on first use.
 

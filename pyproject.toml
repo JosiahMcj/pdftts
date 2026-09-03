@@ -1,9 +1,14 @@
 [project]
 name = "pdftts"
-version = "0.2.1"
+version = "0.2.2"
 description = "Turn PDFs, EPUBs and pasted text into audiobooks on your own machine — five interchangeable TTS engines, layout-aware extraction, OCR for scans. Fully offline."
 readme = "README.md"
-requires-python = ">=3.12"
+# 3.14 is excluded deliberately: it installs cleanly and then cannot narrate.
+# Kokoro's espeak-ng fallback loads its phoneme data through espeakng-loader,
+# which resolves to its build machine's path there instead of the installed one.
+# Without the cap, `uv tool install` and `uvx` pick the newest Python available
+# and hand a stranger a package that is broken on first use.
+requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
 keywords = ["tts", "pdf", "kokoro", "text-to-speech", "ocr", "audiobook", "accessibility"]
 classifiers = [
@@ -11,6 +16,7 @@ classifiers = [
     "Environment :: Console",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Text Processing",
 ]
