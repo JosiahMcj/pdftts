@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 ### Added
 - **Resume after an interruption.** Every finished chunk is cached by exactly the
