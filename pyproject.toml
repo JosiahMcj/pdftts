@@ -1,6 +1,6 @@
 [project]
 name = "pdftts"
-version = "0.2.0"
+version = "0.2.1"
 description = "Turn PDFs, EPUBs and pasted text into audiobooks on your own machine — five interchangeable TTS engines, layout-aware extraction, OCR for scans. Fully offline."
 readme = "README.md"
 requires-python = ">=3.12"

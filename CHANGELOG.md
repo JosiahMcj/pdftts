@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1
+
+### Fixed
+
+- **The first narration failed on a fresh install** — see below; this is the
+  whole reason 0.2.1 exists. 0.2.0 could not narrate anything until the user
+  happened to run it from an activated shell.
+
 ## 0.2.0
 
 ### Added
