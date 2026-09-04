@@ -48,7 +48,7 @@ def test_a_job_reports_how_much_it_reused(client):
 
 
 def test_an_unsupported_upload_is_refused_by_name(client):
-    res = client.post("/api/jobs", files={"file": ("scan.tiff", b"x", "application/octet-stream")})
+    res = client.post("/api/jobs", files={"file": ("archive.zip", b"x", "application/zip")})
     assert res.status_code == 400 and "unsupported file type" in res.json()["detail"]
 
 

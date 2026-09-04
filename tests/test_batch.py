@@ -12,7 +12,10 @@ def _touch(root: Path, *names: str) -> None:
 
 
 def test_only_readable_documents_are_picked_up(tmp_path):
-    _touch(tmp_path, "b.epub", "a.pdf", "notes.md", "cover.jpg", ".hidden.pdf")
+    # .jpg is readable now — it goes through OCR — so the thing that must be
+    # skipped is something genuinely unreadable.
+    _touch(tmp_path, "b.epub", "a.pdf", "notes.md", "cover.svg", "styles.css",
+           ".hidden.pdf")
     assert [p.name for p in batch.sources(tmp_path)] == ["a.pdf", "b.epub", "notes.md"]
 
 

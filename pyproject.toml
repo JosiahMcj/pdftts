@@ -1,6 +1,6 @@
 [project]
 name = "pdftts"
-version = "0.2.2"
+version = "0.2.3"
 description = "Turn PDFs, EPUBs and pasted text into audiobooks on your own machine — five interchangeable TTS engines, layout-aware extraction, OCR for scans. Fully offline."
 readme = "README.md"
 # 3.14 is excluded deliberately: it installs cleanly and then cannot narrate.

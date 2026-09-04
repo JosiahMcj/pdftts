@@ -33,8 +33,16 @@ def available() -> bool:
     return sys.platform == "darwin" and shutil.which("swift") is not None and SCRIPT.exists()
 
 
+#: What Vision will read directly. HEIC is what an iPhone photograph actually is.
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif",
+                  ".heic", ".heif", ".webp"}
+
+
 def ocr_pdf(pdf: Path, timeout: int = 900) -> str:
-    """Return OCR'd text, one blank-line-separated block per page."""
+    """Return OCR'd text, one blank-line-separated block per page.
+
+    Takes an image as readily as a PDF — a photograph of a page is one page.
+    """
     if not available():
         raise OCRUnavailable(
             "Vision OCR needs macOS with the Swift toolchain "

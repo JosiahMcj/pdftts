@@ -12,13 +12,16 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import clean, extract
+from . import clean, extract, ocr
 
 SUFFIXES = {".pdf", ".epub", ".txt", ".md", ".markdown", ".html", ".htm", ".docx",
-            ".mobi", ".azw", ".azw3", ".prc"}
+            ".mobi", ".azw", ".azw3", ".prc"} | ocr.IMAGE_SUFFIXES
 
 #: Kindle formats, which are read by unpacking them into an EPUB first.
 KINDLE = {".mobi", ".azw", ".azw3", ".prc"}
+
+#: Photographs and screenshots of pages, read straight through OCR.
+IMAGES = ocr.IMAGE_SUFFIXES
 
 
 @dataclass
@@ -203,6 +206,24 @@ def _kindle(path: Path) -> Loaded:
         shutil.rmtree(tempdir, ignore_errors=True)
 
 
+def _image(path: Path) -> Loaded:
+    """A photograph or screenshot of a page, read with Vision.
+
+    There is no text layer to try first and no geometry worth trusting, so this
+    goes straight to OCR — the whole point is that the page only exists as
+    pixels. Everything downstream is the same as a scanned PDF.
+    """
+    if not ocr.available():
+        raise RuntimeError(
+            f"{path.suffix} files have to be read with OCR, which needs macOS "
+            "with the Swift toolchain (xcode-select --install)")
+    body = clean.clean(ocr.ocr_pdf(path))
+    if not body.strip():
+        raise ValueError(f"no text was recognised in {path.name}")
+    return Loaded(chapters=[Chapter(path.stem, body)], title=path.stem,
+                  pages=1, ocr_used=True)
+
+
 def _docx(path: Path) -> Loaded:
     import zipfile
 
@@ -230,6 +251,8 @@ def load(path: Path, pages: str | None = None, force_ocr: bool = False) -> Loade
         return _epub(path)
     if suffix in KINDLE:
         return _kindle(path)
+    if suffix in IMAGES:
+        return _image(path)
     if suffix == ".docx":
         return _docx(path)
     raw = path.read_text(errors="ignore")

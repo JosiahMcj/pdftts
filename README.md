@@ -6,7 +6,7 @@
 
 Turn documents into audiobooks on your own machine — a local web dashboard and a CLI, with **five interchangeable TTS engines** so you can trade quality against the hardware you actually have. Nothing leaves the machine: no API keys, no uploads, no per-character billing.
 
-Reads **PDF, EPUB, MOBI, AZW3, DOCX, HTML, Markdown and plain text**. Outputs **WAV, MP3, FLAC, OPUS, M4A, and chaptered M4B** with cover art, plus **word-level SRT/VTT subtitles** driven by real synthesizer timings. **54 voices across nine languages.**
+Reads **PDF, EPUB, MOBI, AZW3, DOCX, HTML, Markdown and plain text** — and **photographs of pages**, straight through OCR. Outputs **WAV, MP3, FLAC, OPUS, M4A, and chaptered M4B** with cover art, plus **word-level SRT/VTT subtitles** driven by real synthesizer timings. **54 voices across nine languages.**
 
 ```bash
 pdftts --serve                          # dashboard at http://127.0.0.1:8765
@@ -78,6 +78,7 @@ That is one real page, extracted naively. The folio and the marginal running hea
 | Rotated copyright notices extracting backwards | Reject glyphs whose text matrix is mirrored or rotated |
 | Loose letter-spacing (`m e a n i n g o f a s t o r y`) | Crop and let `pdfplumber` lay out the text rather than joining words by hand |
 | Scanned pages with no text layer | Fall back to Apple's Vision OCR — no download, no GPU, correct multi-column reading order |
+| A photograph or screenshot instead of a document | Read it as a one-page scan; flatten transparency first, or dark text on a PNG's alpha channel recognises as nothing |
 | Hyphenated line breaks (`partici-\npating`) | Rejoin before synthesis |
 | Decorative drop caps (`W` / `Te are` → `We are`) | Rejoin the initial with its word |
 | Vocabulary lists running into the next paragraph | Punctuate consecutive one-word lines |
@@ -201,6 +202,22 @@ failures are listed at the end.
 failed:
   scan-only.pdf: ValueError: no readable text found
 ```
+
+## A photograph of a page
+
+```bash
+pdftts photo.heic --play          # straight off the phone
+pdftts screenshot.png --m4a
+```
+
+`.png`, `.jpg`, `.tif`, `.bmp`, `.gif`, `.webp` and `.heic` go straight to OCR —
+there is no text layer to try first, which is the whole point. macOS only, like
+the rest of the OCR path; elsewhere they are refused with the reason rather than
+producing an empty file.
+
+One detail worth knowing, because it looks like a broken feature rather than a
+bug: a PNG screenshot usually carries an alpha channel, and Vision reads dark
+text on transparency as nothing at all. The image is flattened onto white first.
 
 ## Kindle books
 
@@ -410,7 +427,7 @@ I have not measured one.
 ## Limitations
 
 - Chatterbox has no speed control; `--speed` is ignored under that engine rather than pitch-shifted.
-- OCR is macOS-only. Elsewhere, scanned PDFs are rejected with a clear message rather than silently producing nothing.
+- OCR is macOS-only. Elsewhere, scanned PDFs and images are rejected with a clear message rather than silently producing nothing.
 - Column detection assumes a single body column. True two-column journal layouts extract in visual order, not reading order.
 - OCR typos survive into the audio; the tool does not guess at word repairs, because guessing changes the text.
 - Equations, tables, and figure captions are read as whatever text they contain.

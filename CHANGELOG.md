@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.3
+
+### Added
+
+- **Photographs and screenshots of pages.** `.png`, `.jpg`, `.tif`, `.bmp`,
+  `.gif`, `.webp` and `.heic` are read straight through Vision OCR, so a photo
+  of a page becomes audio. They go directly to OCR — there is no text layer to
+  try first, which is the point.
+
+### Fixed
+
+- The OCR helper only accepted PDFs; an image was refused outright.
+- A PNG screenshot carries an alpha channel and Vision reads dark text on
+  transparency as nothing at all — a file that looks fine to a human OCR'd to
+  zero lines. Images are flattened onto white first.
+
 ## 0.2.2
 
 ### Fixed
